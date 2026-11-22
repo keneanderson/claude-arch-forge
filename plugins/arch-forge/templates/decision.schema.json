@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/keneanderson/claude-arch-forge/templates/decision.schema.json",
+  "title": "arch-forge decision",
+  "description": "ユーザーが確定したアーキテクチャ。docs/architecture/decision.json に保存され、scaffold ワークフローの入力になる。",
+  "type": "object",
+  "required": ["version", "project", "topology", "repoLayout", "units", "shared", "scaffold"],
+  "properties": {
+    "version": { "const": 1 },
+    "project": {
+      "type": "object",
+      "required": ["name", "summary"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "summary": { "type": "string" },
+        "goModulePath": { "type": "string", "description": "Go の module path（例: github.com/acme/shop）" },
+        "phpNamespace": { "type": "string", "description": "PHP のルート名前空間（例: Acme\\Shop）" }
+      }
+    },
+    "scaleClass": { "enum": ["S", "M", "L", "XL"] },
+    "topology": { "enum": ["monolith", "modular-monolith", "microservices"] },
+    "repoLayout": { "enum": ["single", "monorepo"] },
+    "adr": { "type": "string", "description": "確定 ADR のパス" },
+    "units": {
+      "type": "array",
+      "minItems": 1,
+      "description": "独立してビルド・デプロイされる単位。モノリス / モジュラーモノリスでは 1 つ、マイクロサービスではサービスごとに 1 つ",
+      "items": {
+        "type": "object",
+        "required": ["name", "kind", "language", "pattern", "path", "responsibilities"],
+        "properties": {
+          "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "kind": { "enum": ["app", "service", "worker", "gateway", "bff"] },
+          "language": { "enum": ["go", "php", "rust"] },
+          "pattern": { "enum": ["layered", "clean", "hexagonal", "ddd-clean", "ddd-hexagonal", "vertical-slice"] },
+          "cqrs": { "type": "boolean", "default": false },
+          "framework": { "type": "string", "description": "例: net/http, chi, echo, connect-go, laravel, symfony, slim, axum, actix-web" },
+          "path": { "type": "string", "description": "リポジトリルートからの相対パス。単一構成なら '.'" },
+          "responsibilities": { "type": "array", "items": { "type": "string" } },
+          "dataStore": { "type": "string", "description": "例: postgres, mysql, redis, none" },
+          "exposes": { "type": "array", "items": { "enum": ["rest", "grpc", "graphql", "events", "cli", "none"] } },
+          "consumes": { "type": "array", "items": { "type": "string" }, "description": "購読するイベント / 呼び出す他ユニット" },
+          "modules": {
+            "type": "array",
+            "description": "モジュラーモノリス時のモジュール（境界づけられたコンテキスト）",
+            "items": {
+              "type": "object",
+              "required": ["name", "pattern"],
+              "properties": {
+                "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+                "pattern": { "enum": ["layered", "clean", "hexagonal", "ddd-clean", "ddd-hexagonal", "vertical-slice"] },
+                "publicApi": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          },
+          "sampleFeature": {
+            "type": "object",
+            "description": "全レイヤーを貫通するサンプル実装",
+            "properties": {
+              "aggregate": { "type": "string", "description": "例: Order" },
+              "useCases": { "type": "array", "items": { "type": "string" }, "description": "例: [\"CreateOrder\", \"GetOrder\"]" }
+            }
+          }
+        }
+      }
+    },
+    "shared": {
+      "type": "object",
+      "properties": {
+        "contracts": { "enum": ["openapi", "proto", "both", "none"] },
+        "messaging": { "type": "string", "description": "例: none, nats, kafka, rabbitmq, sqs, pubsub" },
+        "observability": { "type": "array", "items": { "type": "string" }, "description": "例: [\"structured-logging\", \"opentelemetry\"]" },
+        "auth": { "type": "string" }
+      }
+    },
+    "scaffold": {
+      "type": "object",
+      "properties": {
+        "docker": { "type": "boolean", "default": true },
+        "ci": { "enum": ["github-actions", "none"], "default": "github-actions" },
+        "archLint": { "type": "boolean", "default": true, "description": "依存方向ルールを機械的に検査する設定を生成する" }
+      }
+    }
+  }
+}

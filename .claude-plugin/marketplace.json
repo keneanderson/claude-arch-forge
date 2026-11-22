@@ -1,0 +1,18 @@
+{
+  "name": "arch-forge",
+  "description": "Application architecture design & scaffolding workflow for Claude Code (Go / PHP / Rust)",
+  "owner": {
+    "name": "keneanderson",
+    "url": "https://github.com/keneanderson"
+  },
+  "plugins": [
+    {
+      "name": "arch-forge",
+      "source": "./plugins/arch-forge",
+      "description": "要件に応じたアプリケーションアーキテクチャ（レイヤード/クリーン/ヘキサゴナル/DDD/モジュラーモノリス/マイクロサービス）を提案し、確定後にディレクトリとサンプル実装を生成するワークフロー",
+      "version": "0.1.0",
+      "category": "development",
+      "tags": ["architecture", "scaffold", "adr", "go", "php", "rust", "microservices"]
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "name": "arch-forge",
+  "displayName": "Arch Forge",
+  "version": "0.1.0",
+  "description": "Go / PHP / Rust の新規開発で、要件ヒアリング → アーキテクチャ提案（モノリス〜マイクロサービス）→ ADR 確定 → ディレクトリとサンプル実装の生成 → ビルド検証までをワークフローで行う",
+  "author": {
+    "name": "keneanderson",
+    "url": "https://github.com/keneanderson"
+  },
+  "homepage": "https://github.com/keneanderson/claude-arch-forge",
+  "repository": "https://github.com/keneanderson/claude-arch-forge",
+  "license": "MIT",
+  "keywords": [
+    "architecture",
+    "adr",
+    "scaffold",
+    "microservices",
+    "clean-architecture",
+    "hexagonal",
+    "ddd",
+    "go",
+    "php",
+    "rust",
+    "workflow"
+  ],
+  "engines": {
+    "claude-code": ">=2.1.323"
+  }
+}

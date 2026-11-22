@@ -33,8 +33,18 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 7. **docs/architecture/architecture.md**: C4 コンテキスト図とコンテナ図（Mermaid）、ユニット表、データフロー、ADR 一覧
 8. **README.md**（ルート）: プロジェクト概要、起動方法、ディレクトリ構成の説明
 
+## sync モード（scaffold 後に呼ばれる）
+
+プロンプトで「sync モード」と指定された場合は、新規生成ではなく **実際に生成されたコードに合わせてドキュメントを更新** する:
+
+1. 各ユニットのディレクトリツリーと、port（interface / trait）・実装・配線の実際の場所を Glob / Grep で確認する
+2. ルート `CLAUDE.md`、`docs/architecture/architecture.md`、ルート `README.md` の記述（層の場所、追加手順、コマンド）を実態に合わせて修正する
+3. Makefile / CI が参照するコマンド・パスが実在するか確認し、ずれていれば直す
+4. ADR の依存ルールと異なる実装を見つけても、コードは直さずドキュメントに事実を書き、最終応答で報告する
+
 ## ルール
 
+- ドキュメント・コメントは decision.json / ADR と同じ言語で書く
 - 既存ファイルがある場合は上書きせず、差分が必要なら Edit で追記する。既存の README.md / CLAUDE.md は末尾に「## Architecture (arch-forge)」節を追加する
 - 秘密情報をファイルに書かない（`.env.example` はダミー値のみ）
 - YAML / JSON を書いたら構文を確認する（`python3 -c 'import json,sys;json.load(open(sys.argv[1]))'` 等、使えるツールで）

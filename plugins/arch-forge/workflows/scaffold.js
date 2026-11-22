@@ -5,6 +5,7 @@ export const meta = {
   phases: [
     { title: 'Foundation', detail: 'ルート構成・API 契約・CI・CLAUDE.md', model: 'sonnet' },
     { title: 'Scaffold', detail: 'ユニットごとに言語別 scaffolder で生成 → 検証 → 修正', model: 'sonnet' },
+    { title: 'Sync', detail: 'CLAUDE.md / architecture.md を生成コードの実態に合わせる', model: 'sonnet' },
     { title: 'Conformance', detail: 'ADR と依存ルールへの適合チェック', model: 'sonnet' },
   ],
 }
@@ -137,7 +138,16 @@ const unitResults = await pipeline(
   },
 )
 
-// ---- 3. 適合チェック -------------------------------------------------------------
+// ---- 3. ドキュメント同期 -----------------------------------------------------------
+phase('Sync')
+await agent(`${ctx}\nsync モードで実行する。生成されたユニット ${units.map(u => u.name).join(', ')} の実際の構成に合わせて CLAUDE.md / architecture.md / README.md を更新する。`, {
+  agentType: 'arch-forge:foundation-builder',
+  model: 'sonnet',
+  effort: 'medium',
+  label: 'docs sync',
+})
+
+// ---- 4. 適合チェック -------------------------------------------------------------
 phase('Conformance')
 const conformance = await agent(
   `${ctx}\nconformance モードで、生成されたコードが decision.json と ADR の依存ルールに適合しているか検査し ${docs}/07-conformance.md に書く。`,

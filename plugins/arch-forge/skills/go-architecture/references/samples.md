@@ -106,7 +106,9 @@ func (uc *CreateOrder) Execute(ctx context.Context, in CreateOrderInput) (OrderO
 }
 ```
 
-## usecase/create_order_test.go（テーブル駆動 + インメモリ実装）
+## usecase/create_order_test.go（テーブル駆動 + テスト内フェイク）
+
+usecase のテストは adapter の実装を import しない（依存ルール違反になる）。フェイクはテストファイル内に置く。
 
 ```go
 func TestCreateOrder(t *testing.T) {
@@ -120,7 +122,7 @@ func TestCreateOrder(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := memory.NewOrderRepository()
+			repo := newFakeOrderRepository() // 同じテストファイル内の map ベースのフェイク
 			uc := usecase.NewCreateOrder(repo, fixedID("o1"), fixedClock{})
 			_, err := uc.Execute(context.Background(), tt.in)
 			if !errors.Is(err, tt.wantErr) {
@@ -174,7 +176,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	repo := memory.NewOrderRepository() // DATABASE_URL があれば postgres 実装に切替
+	// DATABASE_URL があれば postgres 実装を使う。接続できなければ起動失敗にする（黙ってメモリに戻さない）。
+	// 未設定ならローカル開発用にインメモリ実装を使い、その旨をログに出す。
+	repo, closeDB, err := infrastructure.NewOrderRepository(ctx, cfg.DatabaseURL)
+	if err != nil {
+		log.Error("init repository", "err", err)
+		os.Exit(1)
+	}
+	defer closeDB()
 	ids, clock := infrastructure.UUIDGenerator{}, infrastructure.SystemClock{}
 
 	mux := nethttp.NewServeMux()
@@ -213,5 +222,5 @@ build:     ; go build ./...
 test:      ; go test -race ./...
 fmt:       ; gofmt -w .
 lint:      ; golangci-lint run
-arch-lint: ; go run github.com/fe3dback/go-arch-lint@latest check
+arch-lint: ; go tool go-arch-lint check
 ```

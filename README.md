@@ -23,7 +23,8 @@ flowchart LR
   I --> J2[php-scaffolder]
   I --> J3[rust-scaffolder]
   J1 & J2 & J3 --> K[検証<br/>scaffold-verifier]
-  K --> L[適合チェック<br/>architecture-critic]
+  K --> S[ドキュメント同期<br/>foundation-builder]
+  S --> L[適合チェック<br/>architecture-critic]
 ```
 
 ## 特徴
@@ -148,7 +149,7 @@ docs/architecture/
     ├── agents/                      # 10 のサブエージェント
     ├── workflows/
     │   ├── propose.js               # 分析 → トポロジー → 並列設計 → レビュー → 提案
-    │   └── scaffold.js              # 土台 → ユニット並列生成 → 検証 → 修正 → 適合チェック
+    │   └── scaffold.js              # 土台 → ユニット並列生成 → 検証 → 修正 → ドキュメント同期 → 適合チェック
     └── templates/
         ├── decision.schema.json     # design と scaffold をつなぐ契約
         └── adr.md

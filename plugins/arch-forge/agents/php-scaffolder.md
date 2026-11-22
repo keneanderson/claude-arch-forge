@@ -36,6 +36,8 @@ skills:
 ## ルール
 
 - 担当ユニットの `path` 以外のファイルを変更しない
+- **永続化の配線**: `dataStore` が RDB の場合、実 DB 実装を書いて main で配線する。接続設定（`DATABASE_URL` 等）があれば実 DB を使い、接続失敗時は起動失敗にする（黙ってインメモリに戻さない）。未設定時のみインメモリを使い、その旨をログに出す。実 DB 実装には結合テスト（DB が無い環境ではスキップされる形）を付ける
+- **テストも依存ルールに従う**: 内側の層のテストは外側の層の実装を import / use しない。テストダブルはテストファイル内（またはテスト専用ディレクトリ）に置く
 - Domain / Application 層で `Illuminate\*`、`Symfony\*`、Eloquent、Doctrine を use しない
 - 全ファイルに `declare(strict_types=1);`。クラスは原則 `final`、DTO / Value Object は `readonly`
 

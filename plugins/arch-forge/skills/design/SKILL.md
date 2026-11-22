@@ -141,9 +141,9 @@ AskUserQuestion: 「今すぐディレクトリとサンプル実装を生成し
 }
 ```
 
-内部では foundation-builder（sonnet）→ ユニットごとに言語別 scaffolder（sonnet）→ scaffold-verifier（haiku）→ 失敗時は scaffolder で 1 回修正 → architecture-critic の conformance チェック（sonnet）が動く。
+内部では foundation-builder（sonnet）→ ユニットごとに言語別 scaffolder（sonnet）→ scaffold-verifier（haiku）→ 失敗時は scaffolder で 1 回修正 → foundation-builder（sync モード）でドキュメントを実態に同期 → architecture-critic の conformance チェック（sonnet）が動く。
 
-**フォールバック**: Agent ツールで `arch-forge:foundation-builder` → 各ユニットの `arch-forge:<language>-scaffolder`（ユニットが複数なら 1 メッセージで並列）→ `arch-forge:scaffold-verifier` → `arch-forge:architecture-critic`（conformance モード）の順に実行する。
+**フォールバック**: Agent ツールで `arch-forge:foundation-builder` → 各ユニットの `arch-forge:<language>-scaffolder`（ユニットが複数なら 1 メッセージで並列）→ `arch-forge:scaffold-verifier`（失敗があれば scaffolder で 1 回修正して再検証）→ `arch-forge:foundation-builder`（sync モード）→ `arch-forge:architecture-critic`（conformance モード）の順に実行する。
 
 ## Step 7. 完了報告
 

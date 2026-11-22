@@ -17,7 +17,7 @@ tools: Read, Glob, Grep, Bash
 
 | 言語 | コマンド（順に実行し、各終了コードを記録） |
 |---|---|
-| go | `gofmt -l .` / `go vet ./...` / `go build ./...` / `go test ./...` / `.go-arch-lint.yml` があれば `go run github.com/fe3dback/go-arch-lint@latest check` |
+| go | `gofmt -l .` / `go vet ./...` / `go build ./...` / `go test ./...` / `.go-arch-lint.yml` があれば `go tool go-arch-lint check`（go.mod に tool 登録が無ければ skipped） |
 | php | 全 `*.php` に `php -l`（vendor 除く）/ `composer validate` / vendor があれば `vendor/bin/phpstan analyse --no-progress`、`vendor/bin/pest` または `vendor/bin/phpunit`、`vendor/bin/deptrac analyse --no-progress` |
 | rust | `cargo fmt --all -- --check` / `cargo clippy --workspace --all-targets -- -D warnings` / `cargo build --workspace` / `cargo test --workspace` |
 

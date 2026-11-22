@@ -41,7 +41,9 @@ user-invocable: false
 ## 依存方向の検査（必須）
 
 `.go-arch-lint.yml` を生成し、層の依存ルールを宣言する。サンプルは layouts.md 末尾。
-検証コマンド: `go run github.com/fe3dback/go-arch-lint@latest check`（ネットワークが無ければ `go vet ./...` と import の grep で代替し、その旨を報告する）。
+ツールはバージョンを固定して go.mod の tool ディレクティブ（Go 1.24+）で管理する: `go get -tool github.com/fe3dback/go-arch-lint@<最新の安定タグ>`。
+検証コマンド: `go tool go-arch-lint check`（ネットワークが無く取得できなければ import の grep で代替し、その旨を報告する）。
+**`_test.go` は go-arch-lint の対象外** なので、テストでも依存ルールを守る（usecase のテストは外側の層の実装を import せず、テストファイル内のフェイクを使う）。
 
 ## 生成後の必須チェック
 

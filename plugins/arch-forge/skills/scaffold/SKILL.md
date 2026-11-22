@@ -32,5 +32,5 @@ allowed-tools: Read, Glob, Grep, AskUserQuestion, Workflow, Agent, Bash(ls:*), B
      }
    }
    ```
-   Workflow ツールが使えない場合は、Agent ツールで `arch-forge:foundation-builder` → 各ユニットの `arch-forge:<language>-scaffolder`（並列）→ `arch-forge:scaffold-verifier` → `arch-forge:architecture-critic`（conformance モード）を順に実行する
+   Workflow ツールが使えない場合は、Agent ツールで `arch-forge:foundation-builder` → 各ユニットの `arch-forge:<language>-scaffolder`（並列）→ `arch-forge:scaffold-verifier`（失敗があれば scaffolder で 1 回修正して再検証）→ `arch-forge:foundation-builder`（sync モード）→ `arch-forge:architecture-critic`（conformance モード）を順に実行する
 6. 完了通知を待ち、ユニットごとの passed / failed / skipped、未解決事項、適合チェックの違反数を報告する。失敗が残っていれば修正するか確認する

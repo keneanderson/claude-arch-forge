@@ -105,6 +105,8 @@ final readonly class CreateOrderHandler
 
 ## tests/Unit/.../CreateOrderHandlerTest.php（Pest）
 
+Application 層のテストは Infrastructure の実装に依存させず、テストダブルを `tests/Support/InMemoryOrderRepository.php`（`Tests\Support` 名前空間）に置く。
+
 ```php
 it('creates an order', function () {
     $repo = new InMemoryOrderRepository();

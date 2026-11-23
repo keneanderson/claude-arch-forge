@@ -23,6 +23,6 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: stable
-          cache: false"
+          cache: false
       # claude CLI が無い環境では plugin validate は skipped になる（STRICT=1 を付けると失敗にする）
       - run: bash scripts/validate.sh

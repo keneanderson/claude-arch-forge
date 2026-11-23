@@ -1,6 +1,6 @@
 ---
 name: php-architecture
-description: PHP でのアーキテクチャ実装規約。Laravel / Symfony / Slim でのレイヤード / クリーン / ヘキサゴナル / DDD / モジュラーモノリス / マイクロサービスのディレクトリ構成、PSR-4、DI コンテナ、テスト（Pest/PHPUnit）、PHPStan、deptrac による依存方向検査。PHP プロジェクトの構成を決める・生成する・レビューするときに使う。
+description: PHP でのアーキテクチャ実装規約。Laravel / Symfony / Slim でのレイヤード / クリーン / ヘキサゴナル / DDD / モジュラーモノリス / マイクロサービスのディレクトリ構成、PSR-4、DI コンテナ、テスト（Pest/PHPUnit）、PHPStan、deptrac による依存方向検査。PHP プロジェクトの構成を決める・生成する・レビューするときに使う。 PHP architecture conventions for Laravel / Symfony / Slim (layouts per pattern, PSR-4, DI, Pest / PHPUnit, PHPStan, deptrac).
 user-invocable: false
 ---
 
@@ -16,6 +16,7 @@ user-invocable: false
   - **Laravel**: 管理画面・Web アプリ・高速開発・チームが Laravel 経験者。layered はそのまま、clean/DDD では `app/` をフレームワーク層に限定し、ドメインを `src/` に分離
   - **Symfony**: ヘキサゴナル / DDD と相性が良い（DI コンテナの autowire、Messenger）。長期運用の業務システム
   - **Slim（+ PHP-DI）**: 小さな API / マイクロサービス。フレームワーク依存を最小化したい場合
+- **選定基準・ORM・実行環境の比較** は `architecture-patterns` スキルの `references/frameworks.md`。decision.json の `framework` / `libraries` に従う（Symfony は Doctrine ORM、Slim は Doctrine DBAL か PDO を既定にする）
 - **プロジェクト生成**: `composer` が使えてネットワークがあれば公式インストーラを使う（`composer create-project laravel/laravel <dir>` / `composer create-project symfony/skeleton <dir>` / `composer require slim/slim slim/psr7 php-di/php-di`）。使えなければ `composer.json` と最小構成を手書きし、`composer install` が未実行であることを報告する
 - **名前空間**: PSR-4。ドメイン層は `<RootNamespace>\<Context>\Domain\...`（decision.json の `project.phpNamespace`）
 - **ドメイン層**: フレームワーク（Eloquent / Illuminate / Symfony コンポーネント）に依存しない純粋 PHP。Entity は `final class`、Value Object は `readonly` プロパティ
@@ -24,6 +25,8 @@ user-invocable: false
 - **テスト**: Laravel は Pest、Symfony / Slim は PHPUnit（Pest でも可）。ユースケースはインメモリ Repository でテスト
 - **静的解析**: PHPStan（level 8 以上を目標、`phpstan.neon`）、コードスタイルは Laravel Pint または PHP-CS-Fixer
 - **依存方向**: deptrac（`deptrac.yaml`）で層ルールを宣言して CI で検査
+- **環境と設定**: `APP_ENV` が未設定・未知なら production として扱う。InMemory Repository や簡易な認証・検査は `APP_ENV=local` / `testing` のときだけバインドし、本番で必須設定が無ければ起動時に例外で止める
+- **パッケージの分け方**: decision.json の `packaging`。by-layer は `src/<層>/<機能>/`、by-feature は `src/<機能>/<層>/`（モジュラーモノリスは `modules/<Module>/<層>/`）
 
 ## パターン → ディレクトリの対応（要約）
 

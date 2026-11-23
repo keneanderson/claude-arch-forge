@@ -165,11 +165,58 @@ func (h *OrderHandler) getOrder(w nethttp.ResponseWriter, r *nethttp.Request) {
 ```
 （パッケージ名 `http` と標準ライブラリが衝突するため `nethttp "net/http"` で import する。衝突を避けたい場合はパッケージ名を `httpadapter` にする）
 
+## internal/config/config.go（設定漏れは安全側に倒す）
+
+```go
+// Env は実行環境。未設定・未知の値は Production として扱う（設定の書き忘れで本番が簡易モードにならないように）。
+type Env string
+
+const (
+	EnvProduction Env = "production"
+	EnvLocal      Env = "local"
+	EnvTest       Env = "test"
+)
+
+type Config struct {
+	Env         Env
+	Addr        string
+	DatabaseURL string
+}
+
+// IsLocal は、インメモリ実装などの簡易な動作を許してよい環境かを返す。
+func (c Config) IsLocal() bool { return c.Env == EnvLocal || c.Env == EnvTest }
+
+func Load() (Config, error) {
+	cfg := Config{Env: EnvProduction, Addr: getenv("ADDR", ":8080"), DatabaseURL: os.Getenv("DATABASE_URL")}
+	switch Env(os.Getenv("APP_ENV")) {
+	case EnvLocal:
+		cfg.Env = EnvLocal
+	case EnvTest:
+		cfg.Env = EnvTest
+	}
+	// 本番相当では必須設定が無ければ起動しない
+	if !cfg.IsLocal() && cfg.DatabaseURL == "" {
+		return Config{}, errors.New("DATABASE_URL is required (set APP_ENV=local to use the in-memory store for local development)")
+	}
+	return cfg, nil
+}
+
+func getenv(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
+}
+```
+
 ## cmd/<app>/main.go（配線と graceful shutdown）
 
 ```go
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Error("load config", "err", err)
@@ -177,8 +224,8 @@ func main() {
 	}
 
 	// DATABASE_URL があれば postgres 実装を使う。接続できなければ起動失敗にする（黙ってメモリに戻さない）。
-	// 未設定ならローカル開発用にインメモリ実装を使い、その旨をログに出す。
-	repo, closeDB, err := infrastructure.NewOrderRepository(ctx, cfg.DatabaseURL)
+	// インメモリ実装は APP_ENV=local / test を明示したときだけ使い、その旨をログに出す（config.Load が本番での未設定を拒否する）。
+	repo, closeDB, err := infrastructure.NewOrderRepository(ctx, cfg.DatabaseURL, cfg.IsLocal(), log)
 	if err != nil {
 		log.Error("init repository", "err", err)
 		os.Exit(1)
@@ -195,8 +242,6 @@ func main() {
 	mux.HandleFunc("GET /healthz", func(w nethttp.ResponseWriter, _ *nethttp.Request) { w.WriteHeader(204) })
 
 	srv := &nethttp.Server{Addr: cfg.Addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, nethttp.ErrServerClosed) {
@@ -216,11 +261,15 @@ UUID は外部依存を避けるなら `crypto/rand` で生成した 16 バイ�
 ## Makefile
 
 ```make
-.PHONY: run build test lint fmt arch-lint
-run:       ; go run ./cmd/<app>
+.PHONY: run gen build test lint fmt arch-lint vuln
+run:       ; APP_ENV=local go run ./cmd/<app>
+gen:       ; go tool sqlc generate          # 生成ツールを使う場合だけ（oapi-codegen / buf も同様に go tool で）
 build:     ; go build ./...
 test:      ; go test -race ./...
 fmt:       ; gofmt -w .
-lint:      ; golangci-lint run
+lint:      ; go tool golangci-lint run      # PATH の golangci-lint は古い Go でビルドされていることがある
 arch-lint: ; go tool go-arch-lint check
+vuln:      ; go tool govulncheck ./...
 ```
+
+go.mod の `toolchain` 行は、使うマイナー版の最新パッチ版にする（例: `go 1.27.0` / `toolchain go1.27.4`）。govulncheck が標準ライブラリの脆弱性を出したら、パッチ版を上げて直す。

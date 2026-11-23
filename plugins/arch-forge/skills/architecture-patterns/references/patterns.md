@@ -75,6 +75,22 @@
 
 ---
 
+## 11. パッケージの分け方（層ごと / 機能ごと）
+
+内部パターン（1〜6）とは別の軸。**同じクリーンアーキテクチャでも、最上位を層にするか機能にするか** で見通しと変更の局所性が変わる。案ごとに必ず比較し、両方のツリー例と採用理由を書く。
+
+| 分け方 | ツリー（Go の例） | 向いている | 注意 |
+|---|---|---|---|
+| 層ごと（by-layer） | `internal/{domain,usecase,adapter,infrastructure}/<feature>.go` | 機能が少ない（〜5）、層の規約をチームに浸透させたい、CRUD 中心 | 機能を足すと全層のディレクトリに散らばる。機能単位の削除・分割がしにくい |
+| 機能ごと（by-feature） | `internal/<feature>/{domain,usecase,adapter,infrastructure}/` | 機能・コンテキストが多い、将来モジュールやサービスに切り出す、チームが機能単位で担当 | 機能をまたぐ共通コードの置き場を決める（`platform` の許可リスト）。機能間の参照ルールが要る |
+| hybrid | 機能ごとに分け、横断的関心事（DB 接続、ロガー、HTTP サーバ、ミドルウェア）だけ `internal/platform/` に置く | モジュラーモノリスの標準形 | `platform` にドメインを置かない。許可リストを decision.json の `platform.allow` に書く |
+
+- **組み合わせの目安**: layered + by-layer は自然。モジュラーモノリスは by-feature（= モジュール）か hybrid。バーティカルスライスは定義上 by-feature
+- **ビルド単位とデプロイ単位**: API と worker のように 1 つの go.mod（composer.json / Cargo workspace）から複数の起動点（`cmd/api`、`cmd/worker`）を作る構成は、共通パッケージ（`platform`、`config`）の範囲と、起動点ごとに配線するモジュールを明記する
+- 選んだ分け方は decision.json の `packaging`（by-layer / by-feature / hybrid）に書く
+
+---
+
 ## パターン選択の早見表
 
 | 状況 | 推奨内部パターン |

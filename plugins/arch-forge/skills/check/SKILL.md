@@ -1,6 +1,6 @@
 ---
 name: check
-description: 現在のコードが docs/architecture/decision.json と ADR の依存ルールに従っているかを検査し、違反（ファイル:行、ルール、修正案）を docs/architecture/07-conformance.md に報告する。機能追加後やレビュー前に「アーキテクチャ違反がないか確認して」と言われたときに使う。
+description: 現在のコードが docs/architecture/decision.json と ADR の依存ルールに従っているかを検査し、違反（ファイル:行、ルール、修正案）を docs/architecture/07-conformance.md に報告する。機能追加後やレビュー前に「アーキテクチャ違反がないか確認して」と言われたときに使う。 Checks that the current code follows decision.json and the ADR dependency rules and reports violations (file, line, rule, fix) to docs/architecture/07-conformance.md. Use when asked to check for architecture violations.
 argument-hint: "[検査対象のパス（省略時はリポジトリ全体）]"
 context: fork
 agent: arch-forge:architecture-critic
@@ -10,7 +10,7 @@ allowed-tools: Read, Glob, Grep, Write, Bash
 conformance モードで検査する。
 
 - 対象: $ARGUMENTS（空ならリポジトリ全体）
-- 入力: `docs/architecture/decision.json`、`docs/architecture/adr/*.md`、ルートの `CLAUDE.md`
+- 入力: `docs/architecture/decision.json`、`docs/architecture/adr/*.md`、ルートの `AGENTS.md`、`.claude/rules/arch-forge/`
 - decision.json が無い場合は「`/arch-forge:design` で先にアーキテクチャを確定してください」とだけ返して終了する
 
 手順:

@@ -1,0 +1,59 @@
+# arch-forge: go-arch-lint v3 template (modular monolith, clean inside each module).
+# Verified with go-arch-lint v1.19.2 in tests/go-arch-lint/.
+# Copy as .go-arch-lint.yml next to go.mod. Duplicate the five components and four deps entries of one module per module
+# (here: ordering and inventory). Several deploy units (cmd/api, cmd/worker) sharing this go.mod use this one file.
+# Every component lists itself in mayDependOn. Without it, go-arch-lint reports imports between sub-packages of the
+# same layer (ordering/domain -> ordering/domain/money) and external test packages (package ordering_test) as violations.
+version: 3
+workdir: .
+allow:
+  depOnAnyVendor: true
+  deepScan: true
+components:
+  cmd:                      { in: cmd/** }
+  config:                   { in: internal/config/** }
+  # platform holds cross-cutting code only (DB pool, logger, HTTP server, middleware). No domain code.
+  platform:                 { in: internal/platform/** }
+  # The module root package (module.go + api.go) is the only thing other modules may import.
+  ordering:                 { in: internal/modules/ordering }
+  ordering-domain:          { in: internal/modules/ordering/domain/** }
+  ordering-usecase:         { in: internal/modules/ordering/usecase/** }
+  ordering-adapter:         { in: internal/modules/ordering/adapter/** }
+  ordering-infrastructure:  { in: internal/modules/ordering/infrastructure/** }
+  inventory:                { in: internal/modules/inventory }
+  inventory-domain:         { in: internal/modules/inventory/domain/** }
+  inventory-usecase:        { in: internal/modules/inventory/usecase/** }
+  inventory-adapter:        { in: internal/modules/inventory/adapter/** }
+  inventory-infrastructure: { in: internal/modules/inventory/infrastructure/** }
+deps:
+  cmd:
+    anyProjectDeps: true
+  config:
+    mayDependOn: [config]
+  platform:
+    mayDependOn: [platform, config]
+  # Module root wires its own layers and receives other modules' public API (inventory) from main.
+  ordering:
+    mayDependOn: [ordering, ordering-domain, ordering-usecase, ordering-adapter, ordering-infrastructure, inventory, platform, config]
+  ordering-domain:
+    mayDependOn: [ordering-domain]
+  ordering-usecase:
+    mayDependOn: [ordering-usecase, ordering-domain]
+    # Injection into usecase constructors is dependency inversion. See go-arch-lint.clean.yml.
+    deepScan: false
+  ordering-adapter:
+    mayDependOn: [ordering-adapter, ordering-domain, ordering-usecase]
+  ordering-infrastructure:
+    mayDependOn: [ordering-infrastructure, ordering-domain, ordering-usecase, platform, config]
+  inventory:
+    mayDependOn: [inventory, inventory-domain, inventory-usecase, inventory-adapter, inventory-infrastructure, platform, config]
+  inventory-domain:
+    mayDependOn: [inventory-domain]
+  inventory-usecase:
+    mayDependOn: [inventory-usecase, inventory-domain]
+    deepScan: false
+  inventory-adapter:
+    mayDependOn: [inventory-adapter, inventory-domain, inventory-usecase]
+  inventory-infrastructure:
+    mayDependOn: [inventory-infrastructure, inventory-domain, inventory-usecase, platform, config]
+# platform and config may not import modules.

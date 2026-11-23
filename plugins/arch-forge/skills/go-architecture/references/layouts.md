@@ -155,25 +155,18 @@ internal/
 └── Makefile                       # make build / test / lint を全サービスに対して実行
 ```
 
-## .go-arch-lint.yml（clean の例）
+## .go-arch-lint.yml
 
-```yaml
-version: 3
-workdir: internal
-allow:
-  depOnAnyVendor: true
-components:
-  domain:         { in: domain/** }
-  usecase:        { in: usecase/** }
-  adapter:        { in: adapter/** }
-  infrastructure: { in: infrastructure/** }
-  config:         { in: config/** }
-deps:
-  usecase:
-    mayDependOn: [domain]
-  adapter:
-    mayDependOn: [domain, usecase]
-  infrastructure:
-    mayDependOn: [domain, usecase, adapter, config]
-```
-`deps` に書かれないコンポーネント（domain）は他コンポーネントに依存できない。
+**ゼロから書かず、プラグイン同梱の検証済みテンプレートを使う**（go-arch-lint v3 の形式は細部が厳しく、手書きすると読み込めないことがある）:
+
+| 構成 | テンプレート |
+|---|---|
+| 単一モジュールの clean（hexagonal は名前を変える） | `<pluginRoot>/templates/go/go-arch-lint.clean.yml` |
+| モジュラーモノリス（各モジュール内は clean。API・worker など複数の起動点が 1 つの go.mod を共有してもよい） | `<pluginRoot>/templates/go/go-arch-lint.modular-monolith.yml` |
+
+- どちらも `tests/go-arch-lint/` の fixture で「正しい構成で違反なし」「違反を入れると検出」をプラグインの CI で確認している
+- `workdir: .` で `cmd/**` も対象にし、`cmd` は `anyProjectDeps: true`（配線だけを行う）
+- **deepScan** は、usecase のコンストラクタへ外側の実装を注入する箇所を「usecase → infrastructure の依存」と誤って報告する。テンプレートのとおり、注入を受ける usecase 系のコンポーネントだけ `deepScan: false` にする（全体を off にしない）
+- go-arch-lint は標準ライブラリの import を検査しない。domain の `net/http` などは arch-forge の hooks と `/arch-forge:check` で検査する
+- 各コンポーネントは自分自身を `mayDependOn` に含める。含めないと、同じ層のサブパッケージ間の import（`domain` → `domain/money`）と外部テストパッケージ（`package domain_test`）が違反として報告される
+- domain、platform、config は自分自身（platform は config も）以外に依存できない

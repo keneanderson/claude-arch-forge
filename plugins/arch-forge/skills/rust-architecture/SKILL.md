@@ -1,6 +1,6 @@
 ---
 name: rust-architecture
-description: Rust でのアーキテクチャ実装規約。Cargo workspace の crate 分割による依存方向の強制、レイヤード / クリーン / ヘキサゴナル / DDD / モジュラーモノリス / マイクロサービスの構成、axum + tokio + sqlx、trait による port 定義、エラー設計（thiserror）、テスト。Rust プロジェクトの構成を決める・生成する・レビューするときに使う。
+description: Rust でのアーキテクチャ実装規約。Cargo workspace の crate 分割による依存方向の強制、レイヤード / クリーン / ヘキサゴナル / DDD / モジュラーモノリス / マイクロサービスの構成、axum + tokio + sqlx、trait による port 定義、エラー設計（thiserror）、テスト。Rust プロジェクトの構成を決める・生成する・レビューするときに使う。 Rust architecture conventions (Cargo workspace crate split, axum or actix-web with tokio and sqlx, traits as ports, thiserror, tests).
 user-invocable: false
 ---
 
@@ -22,9 +22,22 @@ user-invocable: false
 - **状態の共有**: `Arc<AppState>`。ハンドラは `State<Arc<AppState<R>>>` で受ける
 - **エラー**: ライブラリ crate（domain / application）は `thiserror` で列挙型エラー、バイナリ crate（api）は `anyhow` 可。HTTP ステータスへの変換は api crate の `IntoResponse` 実装で行う
 - **ログ / トレース**: `tracing` + `tracing-subscriber`（JSON）。マイクロサービスでは `opentelemetry` を追加
-- **設定**: 環境変数を読む `Config` 構造体（必要なら `envy` / `figment`）
+- **設定**: 環境変数を読む `Config` 構造体（必要なら `envy` / `figment`）。`APP_ENV` が未設定・未知なら production として扱い、インメモリ実装は `APP_ENV=local` / `test` のときだけ使う。本番で必須設定が無ければ起動時にエラーで終了する
+- **パッケージの分け方**: decision.json の `packaging`。by-layer は層ごとの crate（`crates/{domain,application,infrastructure,api}`）の中を機能のモジュールで分け、by-feature は機能ごとの crate 群（`crates/<feature>-{domain,application,...}`）にする
 - **テスト**: application crate はインメモリ実装でユニットテスト（`#[tokio::test]`）。api crate は `tower::ServiceExt::oneshot` でルーターをテスト
 - **品質**: `cargo fmt --check`、`cargo clippy --all-targets -- -D warnings`、依存監査は `cargo-deny`（任意）
+
+## フレームワーク別の差分
+
+decision.json の `framework` / `libraries` に従う。samples.md は axum + sqlx 版。選定基準は `architecture-patterns` スキルの `references/frameworks.md`。
+
+| framework | ルーティング | 状態の共有 | テスト |
+|---|---|---|---|
+| axum | `Router::new().route("/orders/{id}", get(h))` | `State<Arc<AppState<R>>>` | `tower::ServiceExt::oneshot` |
+| actix-web | `App::new().service(web::resource("/orders/{id}").route(web::get().to(h)))`、エントリは `#[actix_web::main]` | `web::Data<AppState<R>>` | `actix_web::test::init_service` + `call_service` |
+
+actix-web では tower-http のミドルウェアを使えないので、trace / CORS は `actix-web` の `Logger`・`actix-cors`（または `tracing-actix-web`）で置き換える。
+DB を SeaORM / diesel にした場合も、Entity・スキーマ型は infrastructure crate に閉じ込め、Repository 実装でドメインの型に変換する。
 
 ## パターン → 構成の対応（要約）
 

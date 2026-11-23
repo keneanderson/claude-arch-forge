@@ -4,52 +4,212 @@
   "title": "arch-forge decision",
   "description": "ユーザーが確定したアーキテクチャ。docs/architecture/decision.json に保存され、scaffold ワークフローの入力になる。",
   "type": "object",
-  "required": ["version", "project", "topology", "repoLayout", "units", "shared", "scaffold"],
+  "required": [
+    "version",
+    "project",
+    "topology",
+    "repoLayout",
+    "units",
+    "shared",
+    "scaffold"
+  ],
   "properties": {
-    "version": { "const": 1 },
+    "version": {
+      "const": 1
+    },
     "project": {
       "type": "object",
-      "required": ["name", "summary"],
+      "required": [
+        "name",
+        "summary"
+      ],
       "properties": {
-        "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
-        "summary": { "type": "string" },
-        "goModulePath": { "type": "string", "description": "Go の module path（例: github.com/acme/shop）" },
-        "phpNamespace": { "type": "string", "description": "PHP のルート名前空間（例: Acme\\Shop）" }
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "goModulePath": {
+          "type": "string",
+          "description": "Go の module path（例: github.com/acme/shop）"
+        },
+        "phpNamespace": {
+          "type": "string",
+          "description": "PHP のルート名前空間（例: Acme\\Shop）"
+        }
       }
     },
-    "scaleClass": { "enum": ["S", "M", "L", "XL"] },
-    "topology": { "enum": ["monolith", "modular-monolith", "microservices"] },
-    "repoLayout": { "enum": ["single", "monorepo"] },
-    "adr": { "type": "string", "description": "確定 ADR のパス" },
+    "scaleClass": {
+      "enum": [
+        "S",
+        "M",
+        "L",
+        "XL"
+      ]
+    },
+    "topology": {
+      "enum": [
+        "monolith",
+        "modular-monolith",
+        "microservices"
+      ]
+    },
+    "repoLayout": {
+      "enum": [
+        "single",
+        "monorepo"
+      ]
+    },
+    "adr": {
+      "type": "string",
+      "description": "確定 ADR のパス"
+    },
     "units": {
       "type": "array",
       "minItems": 1,
-      "description": "独立してビルド・デプロイされる単位。モノリス / モジュラーモノリスでは 1 つ、マイクロサービスではサービスごとに 1 つ",
+      "description": "デプロイ単位（独立して起動・デプロイされるプロセス）。モノリスでは通常 1 つ、マイクロサービスではサービスごとに 1 つ。API と worker のように同じビルド単位（go.mod / composer.json / Cargo workspace）を共有する複数のデプロイ単位は、同じ path を持つユニットとして並べ、entrypoint で区別する",
       "items": {
         "type": "object",
-        "required": ["name", "kind", "language", "pattern", "path", "responsibilities"],
+        "required": [
+          "name",
+          "kind",
+          "language",
+          "pattern",
+          "path",
+          "responsibilities"
+        ],
         "properties": {
-          "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
-          "kind": { "enum": ["app", "service", "worker", "gateway", "bff"] },
-          "language": { "enum": ["go", "php", "rust"] },
-          "pattern": { "enum": ["layered", "clean", "hexagonal", "ddd-clean", "ddd-hexagonal", "vertical-slice"] },
-          "cqrs": { "type": "boolean", "default": false },
-          "framework": { "type": "string", "description": "例: net/http, chi, echo, connect-go, laravel, symfony, slim, axum, actix-web" },
-          "path": { "type": "string", "description": "リポジトリルートからの相対パス。単一構成なら '.'" },
-          "responsibilities": { "type": "array", "items": { "type": "string" } },
-          "dataStore": { "type": "string", "description": "例: postgres, mysql, redis, none" },
-          "exposes": { "type": "array", "items": { "enum": ["rest", "grpc", "graphql", "events", "cli", "none"] } },
-          "consumes": { "type": "array", "items": { "type": "string" }, "description": "購読するイベント / 呼び出す他ユニット" },
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "kind": {
+            "enum": [
+              "app",
+              "service",
+              "worker",
+              "gateway",
+              "bff"
+            ]
+          },
+          "language": {
+            "enum": [
+              "go",
+              "php",
+              "rust"
+            ]
+          },
+          "pattern": {
+            "enum": [
+              "layered",
+              "clean",
+              "hexagonal",
+              "ddd-clean",
+              "ddd-hexagonal",
+              "vertical-slice"
+            ]
+          },
+          "packaging": {
+            "enum": [
+              "by-layer",
+              "by-feature",
+              "hybrid"
+            ],
+            "description": "パッケージの分け方。by-layer = 層を最上位に置き中を機能で分ける、by-feature = 機能（モジュール）を最上位に置き中を層で分ける、hybrid = 機能ごとに分け、共通の横断的関心事だけ層で置く。判断基準は architecture-patterns の patterns.md"
+          },
+          "cqrs": {
+            "type": "boolean",
+            "default": false
+          },
+          "framework": {
+            "type": "string",
+            "description": "主フレームワーク。例: net/http, chi, echo, gin, laravel, symfony, slim, axum, actix-web"
+          },
+          "libraries": {
+            "type": "object",
+            "description": "役割ごとの主要ライブラリ（skills/architecture-patterns/references/frameworks.md で選定）。キーの例: http, rpc, db, migration, messaging, test",
+            "propertyNames": {
+              "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "path": {
+            "type": "string",
+            "description": "リポジトリルートからの相対パス。単一構成なら '.'"
+          },
+          "entrypoint": {
+            "type": "string",
+            "description": "このユニットの起動点（path からの相対パス）。例: Go は cmd/api、PHP は bin/worker や public/index.php、Rust は crates/api。同じ path を共有するユニットでは必須で、互いに異なる値にする"
+          },
+          "responsibilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "dataStore": {
+            "type": "string",
+            "description": "例: postgres, mysql, redis, none"
+          },
+          "exposes": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "rest",
+                "grpc",
+                "graphql",
+                "events",
+                "cli",
+                "none"
+              ]
+            }
+          },
+          "consumes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "購読するイベント / 呼び出す他ユニット"
+          },
           "modules": {
             "type": "array",
             "description": "モジュラーモノリス時のモジュール（境界づけられたコンテキスト）",
             "items": {
               "type": "object",
-              "required": ["name", "pattern"],
+              "required": [
+                "name",
+                "pattern"
+              ],
               "properties": {
-                "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
-                "pattern": { "enum": ["layered", "clean", "hexagonal", "ddd-clean", "ddd-hexagonal", "vertical-slice"] },
-                "publicApi": { "type": "array", "items": { "type": "string" } }
+                "name": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$"
+                },
+                "pattern": {
+                  "enum": [
+                    "layered",
+                    "clean",
+                    "hexagonal",
+                    "ddd-clean",
+                    "ddd-hexagonal",
+                    "vertical-slice"
+                  ]
+                },
+                "publicApi": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "cqrs": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "このモジュールだけ CQRS（コマンドとクエリのモデル分離）を使う"
+                }
               }
             }
           },
@@ -57,8 +217,38 @@
             "type": "object",
             "description": "全レイヤーを貫通するサンプル実装",
             "properties": {
-              "aggregate": { "type": "string", "description": "例: Order" },
-              "useCases": { "type": "array", "items": { "type": "string" }, "description": "例: [\"CreateOrder\", \"GetOrder\"]" }
+              "aggregate": {
+                "type": "string",
+                "description": "例: Order"
+              },
+              "useCases": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "例: [\"CreateOrder\", \"GetOrder\"]"
+              }
+            }
+          },
+          "platform": {
+            "type": "object",
+            "description": "横断的な共通パッケージ（同じ path を共有するユニット間でも 1 つ）。ドメインのコードは置かない",
+            "required": [
+              "path",
+              "allow"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "path からの相対パス。例: internal/platform"
+              },
+              "allow": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "置いてよいものの許可リスト。例: [\"db-pool\", \"logger\", \"http-server\", \"middleware\", \"otel\"]"
+              }
             }
           }
         }
@@ -67,18 +257,90 @@
     "shared": {
       "type": "object",
       "properties": {
-        "contracts": { "enum": ["openapi", "proto", "both", "none"] },
-        "messaging": { "type": "string", "description": "例: none, nats, kafka, rabbitmq, sqs, pubsub" },
-        "observability": { "type": "array", "items": { "type": "string" }, "description": "例: [\"structured-logging\", \"opentelemetry\"]" },
-        "auth": { "type": "string" }
+        "contracts": {
+          "enum": [
+            "openapi",
+            "proto",
+            "both",
+            "none"
+          ]
+        },
+        "messaging": {
+          "type": "string",
+          "description": "例: none, nats, kafka, rabbitmq, sqs, pubsub"
+        },
+        "observability": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "例: [\"structured-logging\", \"opentelemetry\"]"
+        },
+        "auth": {
+          "type": "string"
+        }
+      }
+    },
+    "conventions": {
+      "type": "array",
+      "description": "ADR で決めた実装規約（スキーマの他の項目で表せないもの）。scaffolder と適合チェックが参照する",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "rule"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^C[0-9]+$",
+            "description": "例: C1"
+          },
+          "rule": {
+            "type": "string",
+            "description": "規約の本文（1 文）"
+          },
+          "check": {
+            "enum": [
+              "arch-lint",
+              "grep",
+              "test",
+              "review"
+            ],
+            "description": "機械的に検査する方法。review は人・critic の目視"
+          }
+        }
       }
     },
     "scaffold": {
       "type": "object",
       "properties": {
-        "docker": { "type": "boolean", "default": true },
-        "ci": { "enum": ["github-actions", "none"], "default": "github-actions" },
-        "archLint": { "type": "boolean", "default": true, "description": "依存方向ルールを機械的に検査する設定を生成する" }
+        "docker": {
+          "type": "boolean",
+          "default": true
+        },
+        "ci": {
+          "enum": [
+            "github-actions",
+            "none"
+          ],
+          "default": "github-actions"
+        },
+        "archLint": {
+          "type": "boolean",
+          "default": true,
+          "description": "依存方向ルールを機械的に検査する設定を生成する"
+        },
+        "claudeSettings": {
+          "type": "boolean",
+          "default": false,
+          "description": "Claude Code のプロジェクト設定 .claude/settings.json（ビルド・テスト・lint コマンドの権限 allowlist と .env の読み取り禁止）を生成する"
+        },
+        "codegen": {
+          "type": "boolean",
+          "default": true,
+          "description": "sqlc / oapi-codegen / buf などのコード生成ツールを実行し、生成物を配線まで行う"
+        }
       }
     }
   }

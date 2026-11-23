@@ -9,10 +9,21 @@
     {
       "name": "arch-forge",
       "source": "./plugins/arch-forge",
-      "description": "要件に応じたアプリケーションアーキテクチャ（レイヤード/クリーン/ヘキサゴナル/DDD/モジュラーモノリス/マイクロサービス）を提案し、確定後にディレクトリとサンプル実装を生成するワークフロー",
-      "version": "0.1.0",
+      "description": "Proposes an application architecture from requirements (layered / clean / hexagonal / DDD / modular monolith / microservices) together with frameworks and key libraries, then scaffolds directories and a sample implementation once you confirm. / 要件に応じたアプリケーションアーキテクチャ（レイヤード/クリーン/ヘキサゴナル/DDD/モジュラーモノリス/マイクロサービス）とフレームワーク・主要ライブラリを提案し、確定後にディレクトリとサンプル実装を生成するワークフロー",
+      "version": "0.4.0",
       "category": "development",
-      "tags": ["architecture", "scaffold", "adr", "go", "php", "rust", "microservices"]
+      "tags": [
+        "architecture",
+        "scaffold",
+        "adr",
+        "go",
+        "php",
+        "rust",
+        "microservices",
+        "hooks",
+        "rules",
+        "framework-selection"
+      ]
     }
   ]
 }

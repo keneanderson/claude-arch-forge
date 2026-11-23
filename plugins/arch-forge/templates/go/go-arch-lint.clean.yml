@@ -1,0 +1,36 @@
+# arch-forge: go-arch-lint v3 template (clean). Verified with go-arch-lint v1.19.2 in tests/go-arch-lint/.
+# Copy as .go-arch-lint.yml at the unit root (the directory that holds go.mod).
+# hexagonal: rename components to core-domain / core-port / core-service / adapter-inbound / adapter-outbound and keep the same deps shape.
+version: 3
+workdir: .
+allow:
+  # Vendor checks are off. Keep framework / DB imports out of the domain with the arch-forge hooks and review (go-arch-lint ignores the standard library).
+  depOnAnyVendor: true
+  deepScan: true
+components:
+  cmd:            { in: cmd/** }
+  config:         { in: internal/config/** }
+  domain:         { in: internal/domain/** }
+  usecase:        { in: internal/usecase/** }
+  adapter:        { in: internal/adapter/** }
+  infrastructure: { in: internal/infrastructure/** }
+# Every component lists itself in mayDependOn. Without it, go-arch-lint reports imports between sub-packages of the
+# same layer (domain -> domain/money) and external test packages (package usecase_test) as violations.
+deps:
+  # main only wires things together, so it may import every project package.
+  cmd:
+    anyProjectDeps: true
+  config:
+    mayDependOn: [config]
+  domain:
+    mayDependOn: [domain]
+  usecase:
+    mayDependOn: [usecase, domain]
+    # deepScan reports "implementation injected into a usecase constructor" as usecase -> infrastructure.
+    # That is dependency inversion, not a violation, so turn deepScan off only for components that receive injections.
+    deepScan: false
+  adapter:
+    mayDependOn: [adapter, domain, usecase]
+  infrastructure:
+    mayDependOn: [infrastructure, domain, usecase, config]
+# domain and config may depend only on themselves.

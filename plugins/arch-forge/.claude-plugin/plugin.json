@@ -1,8 +1,8 @@
 {
   "name": "arch-forge",
   "displayName": "Arch Forge",
-  "version": "0.1.0",
-  "description": "Go / PHP / Rust の新規開発で、要件ヒアリング → アーキテクチャ提案（モノリス〜マイクロサービス）→ ADR 確定 → ディレクトリとサンプル実装の生成 → ビルド検証までをワークフローで行う",
+  "version": "0.4.0",
+  "description": "Requirement-driven architecture workflow for new Go / PHP / Rust projects: interview, architecture options from monolith to microservices with framework and library selection, ADR, then scaffolding and build verification. Rules and hooks keep the dependency rules afterwards. / Go / PHP / Rust の新規開発で、要件ヒアリング → アーキテクチャ提案（モノリス〜マイクロサービス、フレームワーク・主要ライブラリの選定を含む）→ ADR 確定 → ディレクトリとサンプル実装の生成 → ビルド検証までをワークフローで行う。生成後は rules と hooks で依存ルールを守らせる",
   "author": {
     "name": "keneanderson",
     "url": "https://github.com/keneanderson"
@@ -11,18 +11,36 @@
   "repository": "https://github.com/keneanderson/claude-arch-forge",
   "license": "MIT",
   "keywords": [
-    "architecture",
     "adr",
-    "scaffold",
-    "microservices",
+    "agents-md",
+    "architecture",
     "clean-architecture",
-    "hexagonal",
     "ddd",
+    "framework-selection",
     "go",
+    "hexagonal",
+    "hooks",
+    "microservices",
     "php",
+    "rules",
     "rust",
+    "scaffold",
     "workflow"
   ],
+  "userConfig": {
+    "hook_profile": {
+      "type": "string",
+      "title": "Hook profile",
+      "description": "minimal: only injects the confirmed architecture at session start. standard: also asks before editing accepted ADRs and warns about dependency-direction violations in edited files. strict: turns warnings into blocks and runs arch-lint before stopping. off: disables the hooks. / minimal: セッション開始時に確定アーキテクチャを文脈に注入するだけ。standard: 加えて承認済み ADR の編集に確認を求め、編集したファイルの依存方向違反を警告する。strict: 警告をブロックに格上げし、停止前に arch-lint を実行する。off: hooks を無効にする。",
+      "default": "standard",
+      "options": [
+        "minimal",
+        "standard",
+        "strict",
+        "off"
+      ]
+    }
+  },
   "engines": {
     "claude-code": ">=2.1.323"
   }

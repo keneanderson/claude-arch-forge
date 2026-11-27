@@ -1,41 +1,41 @@
-# Rust ディレクトリ構成リファレンス
+# Rust directory layout reference
 
-サンプル機能は Order（create_order / get_order）。`<app>` はプロジェクト名。
+The sample feature is Order (create_order / get_order). `<app>` is the project name.
 
-## layered（単一 crate）
+## layered (single crate)
 
 ```
 .
 ├── Cargo.toml
 └── src/
-    ├── main.rs            # 配線と起動
+    ├── main.rs            # wiring and startup
     ├── config.rs
-    ├── handler/order.rs   # axum ハンドラ
-    ├── service/order.rs   # 業務処理、OrderRepository trait を定義
+    ├── handler/order.rs   # axum handler
+    ├── service/order.rs   # business logic; defines the OrderRepository trait
     ├── repository/{memory.rs,postgres.rs}
     └── model/order.rs
 ```
 
-## clean（workspace）
+## clean (workspace)
 
 ```
 .
 ├── Cargo.toml                    # [workspace] members = ["crates/*"], resolver = "3"
 ├── crates/
-│   ├── domain/                   # 依存: なし（thiserror 程度）
+│   ├── domain/                   # depends on: nothing (thiserror at most)
 │   │   └── src/{lib.rs,order.rs,error.rs}
-│   ├── application/              # 依存: domain
+│   ├── application/              # depends on: domain
 │   │   └── src/{lib.rs,ports.rs,create_order.rs,get_order.rs}
-│   ├── infrastructure/           # 依存: domain, application, sqlx
+│   ├── infrastructure/           # depends on: domain, application, sqlx
 │   │   └── src/{lib.rs,memory.rs,postgres.rs,clock.rs,id.rs}
-│   └── api/                      # bin。依存: すべて + axum, tokio
+│   └── api/                      # bin; depends on: everything + axum, tokio
 │       ├── src/{main.rs,routes.rs,error.rs,dto.rs}
 │       └── tests/orders.rs
 ├── migrations/0001_create_orders.sql
 └── Makefile
 ```
 
-ルート `Cargo.toml`:
+The root `Cargo.toml`:
 ```toml
 [workspace]
 members = ["crates/*"]
@@ -57,46 +57,46 @@ thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 ```
-（`resolver = "3"` は edition 2024 用。2021 にした場合は `"2"`）
+(`resolver = "3"` is for edition 2024; use `"2"` with 2021)
 
-## hexagonal（workspace）
+## hexagonal (workspace)
 
 ```
 crates/
-├── core/                 # domain + ports(trait) + services（ユースケース）。外部 I/O crate に依存しない
+├── core/                 # domain + ports (traits) + services (use cases); no dependency on external I/O crates
 │   └── src/{domain/,ports/{inbound.rs,outbound.rs},services/}
-├── adapter-http/         # 依存: core, axum
-├── adapter-postgres/     # 依存: core, sqlx
-├── adapter-memory/       # 依存: core（テスト・ローカル用）
-└── app/                  # bin: 配線のみ
+├── adapter-http/         # depends on: core, axum
+├── adapter-postgres/     # depends on: core, sqlx
+├── adapter-memory/       # depends on: core (for tests and local use)
+└── app/                  # bin: wiring only
 ```
 
-## modular-monolith（workspace）
+## modular-monolith (workspace)
 
 ```
 crates/
 ├── modules/
-│   ├── ordering/          # 内部は mod で domain/application/infrastructure
-│   ├── ordering-api/      # 他モジュール向け公開 trait と DTO のみ
+│   ├── ordering/          # domain/application/infrastructure as mods inside
+│   ├── ordering-api/      # only the public traits and DTOs for other modules
 │   ├── inventory/
 │   └── inventory-api/
-├── platform/              # DB プール、イベントバス（tokio::sync::broadcast）、設定
-└── app/                   # bin: 各モジュールの Router を merge
+├── platform/              # DB pool, event bus (tokio::sync::broadcast), configuration
+└── app/                   # bin: merges each module's Router
 ```
-ルール: `ordering` は `inventory-api` に依存してよいが `inventory` には依存しない（Cargo.toml で強制）。
+Rule: `ordering` may depend on `inventory-api` but not on `inventory` (enforced by Cargo.toml).
 
-## microservices（モノレポ）
+## microservices (monorepo)
 
 ```
 .
 ├── api/proto/<svc>/v1/*.proto
 ├── services/
-│   ├── ordering/          # 各サービスは clean 構成の小さな workspace、または単一 crate
+│   ├── ordering/          # each service is a small clean workspace, or a single crate
 │   │   ├── Cargo.toml
-│   │   ├── build.rs       # tonic-build（gRPC の場合）
-│   │   └── Dockerfile     # cargo-chef を使ったマルチステージ
+│   │   ├── build.rs       # tonic-build (for gRPC)
+│   │   └── Dockerfile     # multi-stage with cargo-chef
 │   └── inventory/
-├── libs/telemetry/        # tracing / otel 初期化のみ。ドメイン禁止
+├── libs/telemetry/        # tracing / otel setup only; no domain code
 ├── deploy/docker-compose.yml
-└── Cargo.toml             # ルート workspace（members = ["services/*", "libs/*"]）
+└── Cargo.toml             # root workspace (members = ["services/*", "libs/*"])
 ```

@@ -1,33 +1,34 @@
 # arch-forge rules
 
-生成プロジェクトの `.claude/rules/arch-forge/` に配置する規約ファイルのテンプレートです。
-Claude Code は `.claude/rules/` 配下の Markdown を自動で読み込みます。frontmatter に `paths:` があるファイルは、該当パスのファイルを扱うときだけ読み込まれます。
+Templates for the convention files placed in the generated project's `.claude/rules/arch-forge/`.
+Claude Code loads the Markdown files under `.claude/rules/` automatically. A file with `paths:` in its frontmatter is loaded only when working with files matching those paths.
 
 ```
 rules/
-├── common/                 # 言語に依存しない規約（必ず配置）
-│   ├── architecture.md     # 依存ルール・境界・変更手順（常時）
-│   ├── adr.md              # ADR の運用（docs/architecture/** を扱うとき）
-│   └── verification.md     # 完了報告の前に検証する（常時）
+├── common/                 # language-independent conventions (always placed)
+│   ├── architecture.md     # dependency rules, boundaries, change procedure (always)
+│   ├── adr.md              # ADR practice (when working with docs/architecture/**)
+│   └── verification.md     # verify before reporting completion (always)
 ├── go/architecture.md      # **/*.go, go.mod
 ├── php/architecture.md     # **/*.php, composer.json
 └── rust/architecture.md    # **/*.rs, Cargo.toml
 ```
 
-配置するのは次の 2 種類です。
+Two kinds of files are placed.
 
-1. `common/` と、decision.json の `units[].language` に対応する言語ディレクトリを、**ディレクトリごと** コピーする
-   - 例: `.claude/rules/arch-forge/common/`、`.claude/rules/arch-forge/go/`
-   - 平坦化しない。同名ファイルが上書きされ、`../common/` への相対リンクも壊れるため
-2. ユニットごとに `units/<unit>.md` を生成する
-   - テンプレートは `templates/unit-rule.md`
-   - `paths:` にユニットのパスを入れ、そのユニットの実際の層ディレクトリと依存可能な方向を書く
+1. Copy `common/` and the language directories matching `units[].language` in decision.json, **as whole directories**
+   - e.g. `.claude/rules/arch-forge/common/`, `.claude/rules/arch-forge/go/`
+   - Do not flatten them: files with the same name would overwrite each other, and the relative links to `../common/` would break
+2. Generate `units/<unit>.md` for each unit
+   - The template is `templates/unit-rule.md`
+   - Put the unit's path in `paths:`, and write the unit's actual layer directories and the allowed dependency directions
 
-配置は `/arch-forge:rules`、または scaffold ワークフローの Foundation フェーズが行います。
+Placement is done by `/arch-forge:rules`, or by the Foundation phase of the scaffold workflow.
+If the project's language (the language of decision.json / the ADRs) is not English, translate the files into that language when copying them.
 
-## 書き方
+## How to write them
 
-- 1 ファイル 80 行以内を目安にする。常時読み込まれるファイル（`paths:` なし）は特に短くする
-- 規則は「〜する / 〜しない」と検査できる形で書く。理由は 1 行で添える
-- 言語別ファイルの冒頭で、対応する `common/` ファイルを参照する
-- プロジェクト固有の値（パス・モジュール名）は `units/<unit>.md` にだけ書く。言語別・共通ファイルは汎用のまま保つ
+- Aim for at most 80 lines per file. Keep files that are always loaded (no `paths:`) especially short
+- Write each rule in a checkable "do / do not" form, with a one-line reason
+- At the top of each language file, reference the matching `common/` file
+- Put project-specific values (paths, module names) only in `units/<unit>.md`. Keep the language and common files generic

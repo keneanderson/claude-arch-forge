@@ -1,50 +1,50 @@
 ---
 name: verification-before-completion
-description: arch-forge のサブエージェント共通の完了条件。生成・修正・検査の結果を報告する前に、検証コマンドを実際に実行して出力を確認し、証拠付きで報告する。scaffolder / verifier / foundation-builder / architecture-critic にプリロードされる。 Do not claim completion without evidence. Run the verification commands and report their results, including what was skipped or could not be verified.
+description: The shared completion criteria for arch-forge subagents. Before reporting the results of generation, fixes or checks, actually run the verification commands, check their output, and report with evidence, including what was skipped or could not be verified. Preloaded by the scaffolders, verifier, foundation-builder and architecture-critic.
 user-invocable: false
 ---
 
-# 完了報告の前に検証する
+# Verify before reporting completion
 
-**原則: 証拠なしに完了を主張しない。** このメッセージ内で実行していない検証は、通ったと言えない。
+**Principle: never claim completion without evidence.** A verification not run in this message cannot be said to have passed.
 
-## 手順（報告の直前に毎回）
+## Procedure (every time, right before reporting)
 
-1. **特定**: その主張を証明するコマンドは何か（build / test / lint / arch-lint / `ls` / `git status`）
-2. **実行**: そのコマンドを最後まで実行する（前回の結果を流用しない）
-3. **読む**: 終了コードと出力を確認し、失敗件数を数える
-4. **照合**: 出力が主張を裏付けているか
-   - 裏付けていない → 実際の状態を証拠付きで報告する
-   - 裏付けている → 主張と証拠（コマンドと結果）を一緒に報告する
+1. **Identify**: which command proves the claim (build / test / lint / arch-lint / `ls` / `git status`)
+2. **Run**: run that command to the end (do not reuse an earlier result)
+3. **Read**: check the exit code and output, and count the failures
+4. **Compare**: does the output support the claim
+   - It does not → report the actual state with evidence
+   - It does → report the claim together with the evidence (command and result)
 
-## よくある誤り
+## Common mistakes
 
-| 主張 | 必要な証拠 | 証拠にならないもの |
+| Claim | Evidence needed | Not evidence |
 |---|---|---|
-| テストが通る | テストコマンドの出力（失敗 0） | 前回の実行、「通るはず」 |
-| ビルドできる | ビルドの終了コード 0 | lint が通ったこと |
-| 依存ルールを守っている | arch-lint の出力、import の Grep 結果 | 「層を分けたので大丈夫」 |
-| ファイルを生成した | `ls` / Glob の結果 | 書いたつもり |
-| ドキュメントが実態と一致 | 記載したパス・コマンドの実在確認 | テンプレートどおりに書いたこと |
+| Tests pass | Output of the test command (0 failures) | An earlier run, "it should pass" |
+| It builds | Exit code 0 from the build | Lint passing |
+| The dependency rules are kept | arch-lint output, Grep results for imports | "The layers are split, so it's fine" |
+| The files were generated | `ls` / Glob results | Believing you wrote them |
+| The docs match reality | Confirming the paths and commands written actually exist | Having followed the template |
 
-## 危険信号（見つけたら止まって検証する）
+## Red flags (stop and verify when you notice one)
 
-- 「おそらく」「〜のはず」「問題ないと思う」と書こうとしている
-- 検証の前に「完了しました」と書こうとしている
-- ツールが無いので検証を飛ばし、それを報告に書いていない
-- skipped を passed として数えている
-- 検証を通すために、テスト・lint 設定・依存方向の設定・バージョン下限の検査を緩めようとしている（対象を減らす、条件を弱める、skip を足す）。緩めずに直せないなら、緩めずに `unresolved` に理由を書き、判断をユーザーに回す
-- ツール（go / php / cargo）が見つからないので「無い」と報告しようとしている。先に `bash <pluginRoot>/scripts/detect-toolchains.sh` で実体を探したか
-- 1 つのユニット・ファイルで確認したことを全体に一般化している
+- You are about to write "probably", "it should" or "I think it's fine"
+- You are about to write "done" before verifying
+- You skipped verification because a tool is missing, and did not say so in the report
+- You are counting skipped as passed
+- You are about to weaken tests, lint settings, dependency-direction settings or the minimum-version checks (reducing targets, weakening conditions, adding skips) to make verification pass. If it cannot be fixed without weakening, do not weaken it; write the reason in `unresolved` and leave the decision to the user
+- You are about to report that a tool (go / php / cargo) "is missing" because it was not found. Did you first look for the real binary with `bash <pluginRoot>/scripts/detect-toolchains.sh`?
+- You are generalizing what you confirmed in one unit or file to everything
 
-## 報告の形
+## Report format
 
-- 実行したコマンドと結果（passed / failed / skipped）を並べる
-- skipped には理由を書く（ツール未インストール、ネットワーク不可など）
-- 直せなかった失敗は `unresolved` / `blockers` に残す。隠さない
+- List the commands run and their results (passed / failed / skipped)
+- Give the reason for each skipped one (tool not installed, no network, etc.)
+- Leave failures you could not fix in `unresolved` / `blockers`. Do not hide them
 
-## Bash の使い方（権限の確認で止まらないために）
+## Using Bash (so permission checks do not stall you)
 
-- プラグインのファイル（`<pluginRoot>` 配下のテンプレート・rules・スキル）は **Read で読む**。プロジェクトの外を `cat` / `cp` / `cd` で触ると、Claude Code が拒否する。コピーが必要なら Read してから Write する
-- コマンドは 1 回に 1 つずつ、単純な形で実行する（`go test ./...`、`make gen`）。`;` や `&&` での連結、シェル変数、`for` ループ、`$?` を使うと、承認の確認で止まりやすい
-- PATH の go が動かないときに、絶対パスや `export PATH=...` で回避するのは最後の手段（毎回承認が必要になる）。プロジェクトに `.go-version` / `.tool-versions` があれば消さない
+- **Read** the plugin's files (templates, rules and skills under `<pluginRoot>`). Claude Code rejects `cat` / `cp` / `cd` that touch paths outside the project. If you need a copy, Read it and then Write it
+- Run commands one at a time, in a simple form (`go test ./...`, `make gen`). Chaining with `;` or `&&`, shell variables, `for` loops and `$?` tend to stall on approval checks
+- When go on PATH does not work, working around it with an absolute path or `export PATH=...` is the last resort (it needs approval every time). If the project has `.go-version` / `.tool-versions`, do not delete them

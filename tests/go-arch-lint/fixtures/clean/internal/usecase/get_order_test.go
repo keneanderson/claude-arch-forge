@@ -6,5 +6,5 @@ import (
 	"example.com/shop/internal/usecase"
 )
 
-// 外部テストパッケージ（package usecase_test）も go-arch-lint の検査対象になる。
+// External test packages (package usecase_test) are also checked by go-arch-lint.
 func TestNew(t *testing.T) { _ = usecase.NewGetOrder }

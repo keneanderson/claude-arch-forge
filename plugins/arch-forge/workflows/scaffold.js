@@ -1,38 +1,38 @@
 export const meta = {
   name: 'scaffold',
-  description: '確定した docs/architecture/decision.json から、リポジトリの土台・ユニットごとのディレクトリとサンプル実装を並列生成し、ビルド/テスト検証と依存方向の適合チェックまで行う',
-  whenToUse: 'arch-forge:design または arch-forge:scaffold スキルが、アーキテクチャ確定後に起動する。args: { pluginRoot, docsDir, toolchainPath?, units: [{ name, language, path, entrypoint? }] }。同じ path のユニットは 1 つのビルド単位として順番に生成する',
+  description: 'From the confirmed docs/architecture/decision.json, generates the repository foundation and each unit\'s directories and sample implementation in parallel, then runs build/test verification and a dependency-direction conformance check',
+  whenToUse: 'Started by the arch-forge:design or arch-forge:scaffold skill after the architecture is confirmed. args: { pluginRoot, docsDir, toolchainPath?, units: [{ name, language, path, entrypoint? }] }. Units with the same path are generated in order as one build unit',
   phases: [
-    { title: 'Foundation', detail: 'ルート構成・API 契約・CI・AGENTS.md / CLAUDE.md・共通 rules', model: 'sonnet' },
-    { title: 'Scaffold', detail: 'ビルド単位ごとに言語別 scaffolder で生成 → 検証 → 修正（同じ path を共有するユニットは順番に）', model: 'sonnet' },
-    { title: 'Sync', detail: 'AGENTS.md / architecture.md / ユニット別 rules を生成コードの実態に合わせる', model: 'sonnet' },
-    { title: 'Conformance', detail: 'ADR と依存ルールへの適合チェック', model: 'sonnet' },
+    { title: 'Foundation', detail: 'Root layout, API contracts, CI, AGENTS.md / CLAUDE.md, common rules', model: 'sonnet' },
+    { title: 'Scaffold', detail: 'Per build unit: generate with the language scaffolder → verify → fix (units sharing a path go in order)', model: 'sonnet' },
+    { title: 'Sync', detail: 'Align AGENTS.md / architecture.md / per-unit rules with the generated code', model: 'sonnet' },
+    { title: 'Conformance', detail: 'Conformance check against the ADRs and dependency rules', model: 'sonnet' },
   ],
 }
 
-// ---- 入力 -------------------------------------------------------------------
-// args は呼び出し側によって JSON 文字列のまま届くことがあるので、両方を受け付ける
+// ---- Input -------------------------------------------------------------------
+// Depending on the caller, args may arrive as a JSON string, so accept both
 const ARGS = typeof args === 'string' ? (() => { try { return JSON.parse(args) } catch (e) { return {} } })() : (args ?? {})
 const docs = ARGS.docsDir ?? 'docs/architecture'
 const pluginRoot = ARGS.pluginRoot ?? ''
 const units = Array.isArray(ARGS.units) ? ARGS.units : []
 if (units.length === 0) {
-  throw new Error('args.units が空。decision.json の units から { name, language, path, entrypoint } の配列を渡すこと')
+  throw new Error('args.units is empty. Pass an array of { name, language, path, entrypoint } from the units in decision.json')
 }
 
-// 名前とパスはエージェントのプロンプト内でファイルパスとして使われる。ディレクトリの外に出る値を拒否する
+// Names and paths are used as file paths in agent prompts. Reject values that escape the directory
 const SAFE_NAME = /^[a-z][a-z0-9-]*$/
 const SAFE_PATH = /^(\.|[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*)$/
 const isSafePath = p => typeof p === 'string' && SAFE_PATH.test(p) && !p.split('/').includes('..')
 const normPath = p => (p === './' ? '.' : p.replace(/^\.\//, '').replace(/\/$/, '') || '.')
-if (!isSafePath(docs)) throw new Error(`docsDir が不正: ${JSON.stringify(docs)}`)
+if (!isSafePath(docs)) throw new Error(`invalid docsDir: ${JSON.stringify(docs)}`)
 
-// 検出スクリプト（scripts/detect-toolchains.sh --env）が見つけたツールチェーンのディレクトリ。
-// PATH の go などがシム（goenv / asdf）で失敗する環境でも、サブエージェントが同じ実体を使うようにする
+// Toolchain directories found by the detection script (scripts/detect-toolchains.sh --env).
+// Even where go and friends on PATH fail through shims (goenv / asdf), subagents use the same real binaries
 const toolchainPath = typeof ARGS.toolchainPath === 'string' ? ARGS.toolchainPath : ''
 const SAFE_BINPATH = /^\/[A-Za-z0-9._@+\/-]+(:\/[A-Za-z0-9._@+\/-]+)*$/
 if (toolchainPath && (!SAFE_BINPATH.test(toolchainPath) || toolchainPath.split(/[/:]/).includes('..'))) {
-  throw new Error(`toolchainPath が不正: ${JSON.stringify(toolchainPath)}（絶対パスをコロンでつないだもの）`)
+  throw new Error(`invalid toolchainPath: ${JSON.stringify(toolchainPath)} (absolute paths joined with colons)`)
 }
 
 const SCAFFOLDER = {
@@ -41,17 +41,17 @@ const SCAFFOLDER = {
   rust: 'arch-forge:rust-scaffolder',
 }
 for (const u of units) {
-  if (!u || !SAFE_NAME.test(u.name || '')) throw new Error(`ユニット名が不正: ${JSON.stringify(u && u.name)}（${SAFE_NAME} に一致させる）`)
-  if (typeof u.path !== 'string' || !isSafePath(normPath(u.path))) throw new Error(`ユニット ${u.name} の path が不正: ${JSON.stringify(u.path)}（リポジトリ内の相対パス）`)
-  if (!SCAFFOLDER[u.language]) throw new Error(`未対応の言語: ${u.name} (${u.language})`)
+  if (!u || !SAFE_NAME.test(u.name || '')) throw new Error(`invalid unit name: ${JSON.stringify(u && u.name)} (must match ${SAFE_NAME})`)
+  if (typeof u.path !== 'string' || !isSafePath(normPath(u.path))) throw new Error(`invalid path for unit ${u.name}: ${JSON.stringify(u.path)} (a relative path inside the repository)`)
+  if (!SCAFFOLDER[u.language]) throw new Error(`unsupported language: ${u.name} (${u.language})`)
   if (u.entrypoint !== undefined && u.entrypoint !== '' && !isSafePath(u.entrypoint)) {
-    throw new Error(`ユニット ${u.name} の entrypoint が不正: ${JSON.stringify(u.entrypoint)}`)
+    throw new Error(`invalid entrypoint for unit ${u.name}: ${JSON.stringify(u.entrypoint)}`)
   }
 }
 const languages = [...new Set(units.map(u => u.language))]
 
-// 同じ path を持つユニットは 1 つのビルド単位（go.mod / composer.json / Cargo workspace）を共有する。
-// 並列に生成すると共通ファイルの書き込みが衝突するので、グループ内は順番に作り、検証はグループで 1 回にする
+// Units with the same path share one build unit (go.mod / composer.json / Cargo workspace).
+// Generating them in parallel would make writes to shared files collide, so a group is built in order and verified once
 const groups = []
 for (const u of units) {
   const key = normPath(u.path)
@@ -62,21 +62,21 @@ for (const u of units) {
 for (const g of groups) {
   if (g.units.length < 2) continue
   const langs = new Set(g.units.map(u => u.language))
-  if (langs.size > 1) throw new Error(`path ${g.path} を共有するユニットの言語が異なる: ${g.units.map(u => `${u.name}(${u.language})`).join(', ')}`)
+  if (langs.size > 1) throw new Error(`units sharing path ${g.path} have different languages: ${g.units.map(u => `${u.name}(${u.language})`).join(', ')}`)
   const eps = g.units.map(u => u.entrypoint || '')
   if (eps.some(e => !e) || new Set(eps).size !== eps.length) {
-    throw new Error(`path ${g.path} を共有するユニットには、互いに異なる entrypoint が必要: ${g.units.map(u => `${u.name}=${u.entrypoint || '(なし)'}`).join(', ')}`)
+    throw new Error(`units sharing path ${g.path} each need a distinct entrypoint: ${g.units.map(u => `${u.name}=${u.entrypoint || '(none)'}`).join(', ')}`)
   }
 }
 const groupLabel = g => g.units.map(u => u.name).join('+')
 
 const toolchainNote = toolchainPath
-  ? `この環境では PATH の go などが動かない。Bash でビルド・検証コマンドを実行するときは、先に export PATH="${toolchainPath}:$PATH" を行う（Claude Code では毎回承認が必要になる。プロジェクトに .go-version などが置かれて PATH の go が動くようになっていれば不要）。`
+  ? `In this environment go and friends on PATH do not work. When running build or verification commands with Bash, first run export PATH="${toolchainPath}:$PATH" (Claude Code asks for approval each time; not needed once the project has .go-version or similar and go on PATH works).`
   : ''
 const ctx =
-  `作業ディレクトリ（プロジェクトルート）で作業する。確定アーキテクチャは ${docs}/decision.json と ${docs}/adr/ にある。pluginRoot=${pluginRoot}。` +
-  'ドキュメント・コメント・最終応答はユーザーの言語（decision.json / ADR の言語）で書く。' +
-  '承認済み ADR と decision.json は編集しない。完了を報告する前に検証コマンドを実行し、結果を証拠として返す。' +
+  `Work in the working directory (the project root). The confirmed architecture is in ${docs}/decision.json and ${docs}/adr/. pluginRoot=${pluginRoot}. ` +
+  'Write documents, comments and the final response in the user\'s language (the language of decision.json / the ADRs). ' +
+  'Do not edit accepted ADRs or decision.json. Run the verification commands before reporting completion, and return the results as evidence. ' +
   toolchainNote
 
 const SCAFFOLD_RESULT = {
@@ -85,8 +85,8 @@ const SCAFFOLD_RESULT = {
   properties: {
     unit: { type: 'string' },
     filesCreated: { type: 'integer' },
-    checks: { type: 'array', items: { type: 'string' }, description: '実行した検証コマンドと結果（例: "go test ./...: passed"）' },
-    unresolved: { type: 'array', items: { type: 'string' }, description: '直せなかった失敗、未検証の項目、判断が必要な点' },
+    checks: { type: 'array', items: { type: 'string' }, description: 'The verification commands run and their results (e.g. "go test ./...: passed")' },
+    unresolved: { type: 'array', items: { type: 'string' }, description: 'Failures that could not be fixed, unverified items, points needing a decision' },
   },
 }
 
@@ -95,7 +95,7 @@ const VERIFY_RESULT = {
   required: ['unit', 'allPassed', 'results'],
   properties: {
     unit: { type: 'string' },
-    allPassed: { type: 'boolean', description: 'failed が 1 つも無ければ true（skipped は許容）' },
+    allPassed: { type: 'boolean', description: 'true if nothing failed (skipped is allowed)' },
     results: {
       type: 'array',
       items: {
@@ -127,53 +127,53 @@ const CONFORMANCE_RESULT = {
   },
 }
 
-// ---- 1. 土台 ---------------------------------------------------------------------
+// ---- 1. Foundation ---------------------------------------------------------------------
 phase('Foundation')
 const sharedNote = groups
   .filter(g => g.units.length > 1)
-  .map(g => `path ${g.path} はユニット ${groupLabel(g)} が共有する 1 つのビルド単位（マニフェストは 1 つ。go.work / workspace の members にも 1 回だけ書く。CI の job もビルド単位ごと）`)
-  .join('。')
-await agent(`${ctx}\ndecision.json に従いリポジトリの土台を生成する。ユニット一覧: ${JSON.stringify(units)}\n${sharedNote ? sharedNote + '。\n' : ''}.claude/rules/arch-forge/ には common と次の言語のルールをコピーする: ${languages.join(', ')}`, {
+  .map(g => `path ${g.path} is one build unit shared by units ${groupLabel(g)} (one manifest; list it only once in go.work / workspace members; CI jobs are per build unit too)`)
+  .join('. ')
+await agent(`${ctx}\nGenerate the repository foundation according to decision.json. Units: ${JSON.stringify(units)}\n${sharedNote ? sharedNote + '.\n' : ''}Copy common plus the rules for these languages into .claude/rules/arch-forge/: ${languages.join(', ')}`, {
   agentType: 'arch-forge:foundation-builder',
   model: 'sonnet',
   effort: 'medium',
   label: 'foundation',
 })
 
-// ---- 2. ビルド単位ごとに 生成 → 検証 → 修正（ビルド単位間はバリアなしで並行） -------------
+// ---- 2. Per build unit: generate → verify → fix (build units run concurrently without a barrier) -------------
 const rootGuard = path =>
   path === '.'
-    ? 'このユニットの path はリポジトリルート。foundation-builder が作成済みの README.md / AGENTS.md / CLAUDE.md / Makefile / .github / deploy / api は上書きせず、必要なら追記だけ行う。'
-    : `このユニットの path は ${path}。それ以外のパスは変更しない。`
+    ? 'This unit\'s path is the repository root. Do not overwrite the README.md / AGENTS.md / CLAUDE.md / Makefile / .github / deploy / api already created by foundation-builder; only append to them if needed.'
+    : `This unit\'s path is ${path}. Do not change any other path.`
 
-// グループ内での役割。1 番目が共通部分を作り、2 番目以降は自分の起動点だけを足す
+// Role within the group. The first builds the shared parts; later ones add only their own entrypoint
 const roleNote = (g, i) => {
   if (g.units.length < 2) return ''
-  const others = g.units.filter((_, j) => j !== i).map(u => `${u.name}（${u.entrypoint}）`).join(', ')
+  const others = g.units.filter((_, j) => j !== i).map(u => `${u.name} (${u.entrypoint})`).join(', ')
   const me = g.units[i]
   return i === 0
-    ? `このユニットは path ${g.path} のビルド単位を ${others} と共有する。あなたが最初の担当なので、共通部分（go.mod などのマニフェスト、platform・config などの共通パッケージ、ビルド単位の Makefile・lint 設定・Dockerfile）と、自分の起動点 ${me.entrypoint} を作る。他のユニットの起動点は作らない。共通部分はすべてのユニットが使う前提で作る。`
-    : `このユニットは path ${g.path} のビルド単位を ${others} と共有する。共通部分は先の担当が作成済みなので作り直さない。自分の起動点 ${me.entrypoint} と、このユニットだけが使うパッケージを追加する。共通部分の変更が必要なら最小の追記にとどめ、最終応答の unresolved に理由を書く。`
+    ? `This unit shares the build unit at path ${g.path} with ${others}. You are the first in charge, so build the shared parts (the manifest such as go.mod, shared packages such as platform and config, the build unit\'s Makefile, lint settings and Dockerfile) and your own entrypoint ${me.entrypoint}. Do not create the other units\' entrypoints. Build the shared parts on the assumption that every unit uses them.`
+    : `This unit shares the build unit at path ${g.path} with ${others}. The shared parts were already created by the earlier unit, so do not rebuild them. Add your own entrypoint ${me.entrypoint} and the packages only this unit uses. If the shared parts need changes, keep them to minimal additions and write the reason in unresolved in your final response.`
 }
 
 const NO_WEAKEN =
-  '検証・検査（テスト、lint 設定、arch-lint 設定、バージョン下限の検査スクリプト）を緩めて通す修正（対象を減らす、条件を弱める、skip を足す）はしない。' +
-  '緩める以外に直せない場合は修正せず、unresolved に「検査を緩める必要がある: 理由」と書いてユーザーの判断に回す。'
+  'Never make a fix that passes by weakening verification or checks (tests, lint settings, arch-lint settings, the minimum-version check script) by reducing their targets, weakening conditions or adding skips. ' +
+  'If it cannot be fixed without weakening, do not fix it; write "checks would need to be weakened: <reason>" in unresolved and leave the decision to the user.'
 
 const verify = (g, label) =>
   agent(
-    `ビルド単位 ${g.path}（言語: ${g.units[0].language}、ユニット: ${g.units.map(u => u.name + (u.entrypoint ? `=${u.entrypoint}` : '')).join(', ')}）を検証する。pluginRoot=${pluginRoot}。${toolchainNote}`,
+    `Verify the build unit ${g.path} (language: ${g.units[0].language}, units: ${g.units.map(u => u.name + (u.entrypoint ? `=${u.entrypoint}` : '')).join(', ')}). pluginRoot=${pluginRoot}. ${toolchainNote}`,
     { agentType: 'arch-forge:scaffold-verifier', model: 'haiku', effort: 'low', schema: VERIFY_RESULT, label, phase: 'Scaffold' },
   )
 
 const groupResults = await pipeline(
   groups,
-  // stage 1: 生成（グループ内は順番に）
+  // stage 1: generate (in order within a group)
   async g => {
     const scaffolded = []
     for (let i = 0; i < g.units.length; i++) {
       const u = g.units[i]
-      const r = await agent(`${ctx}\n担当ユニット: ${u.name}\n${rootGuard(g.path)}\n${roleNote(g, i)}`, {
+      const r = await agent(`${ctx}\nAssigned unit: ${u.name}\n${rootGuard(g.path)}\n${roleNote(g, i)}`, {
         agentType: SCAFFOLDER[u.language],
         model: 'sonnet',
         effort: 'medium',
@@ -185,9 +185,9 @@ const groupResults = await pipeline(
     }
     return scaffolded
   },
-  // stage 2: 検証（グループで 1 回）
+  // stage 2: verify (once per group)
   (scaffolded, g) => verify(g, `${groupLabel(g)} verify`).then(v => ({ scaffolded, verified: v })),
-  // stage 3: 失敗時のみ 1 回修正して再検証
+  // stage 3: only on failure, fix once and re-verify
   async (prev, g) => {
     if (prev.verified && prev.verified.allPassed) return { ...prev, fixed: false }
     const failures = (prev.verified ? prev.verified.results : [])
@@ -195,8 +195,8 @@ const groupResults = await pipeline(
       .map(r => `- ${r.command}: ${r.detail ?? ''}`)
       .join('\n')
     const u = g.units[0]
-    const scope = g.units.length > 1 ? `ビルド単位 ${g.path} を共有するユニット ${groupLabel(g)} をまとめて直す。` : ''
-    await agent(`${ctx}\n担当ユニット: ${u.name}\n${rootGuard(g.path)}\n${scope}\n検証で次の失敗が出た。原因を調べて修正し、再度ビルドとテストを通すこと:\n${failures}\n${NO_WEAKEN}`, {
+    const scope = g.units.length > 1 ? `Fix the units ${groupLabel(g)} sharing the build unit ${g.path} together.` : ''
+    await agent(`${ctx}\nAssigned unit: ${u.name}\n${rootGuard(g.path)}\n${scope}\nVerification reported the following failures. Find the cause, fix it, and get the build and tests passing again:\n${failures}\n${NO_WEAKEN}`, {
       agentType: SCAFFOLDER[u.language],
       model: 'sonnet',
       effort: 'high',
@@ -208,19 +208,19 @@ const groupResults = await pipeline(
   },
 )
 
-// ---- 3. ドキュメント同期 -----------------------------------------------------------
+// ---- 3. Document sync -----------------------------------------------------------
 phase('Sync')
-await agent(`${ctx}\nsync モードで実行する。生成されたユニット ${units.map(u => u.name).join(', ')} の実際の構成に合わせて AGENTS.md / architecture.md / README.md を更新し、.claude/rules/arch-forge/units/<unit>.md を生成する。`, {
+await agent(`${ctx}\nRun in sync mode. Update AGENTS.md / architecture.md / README.md to match the actual structure of the generated units ${units.map(u => u.name).join(', ')}, and generate .claude/rules/arch-forge/units/<unit>.md.`, {
   agentType: 'arch-forge:foundation-builder',
   model: 'sonnet',
   effort: 'medium',
   label: 'docs sync',
 })
 
-// ---- 4. 適合チェック -------------------------------------------------------------
+// ---- 4. Conformance check -------------------------------------------------------------
 phase('Conformance')
 const conformance = await agent(
-  `${ctx}\nconformance モードで、生成されたコードが decision.json と ADR の依存ルールに適合しているか検査し ${docs}/07-conformance.md に書く。`,
+  `${ctx}\nIn conformance mode, check whether the generated code conforms to decision.json and the ADRs\' dependency rules, and write the result to ${docs}/07-conformance.md.`,
   { agentType: 'arch-forge:architecture-critic', model: 'sonnet', effort: 'high', schema: CONFORMANCE_RESULT, label: 'conformance' },
 )
 
@@ -229,7 +229,7 @@ const summary = units.map(u => {
   const g = groups[gi]
   const r = groupResults[gi]
   const shared = g.units.length > 1 ? { buildUnit: g.path, sharedWith: g.units.filter(x => x !== u).map(x => x.name) } : {}
-  if (!r) return { unit: u.name, status: 'error', note: 'エージェントが失敗した（ログを確認）', ...shared }
+  if (!r) return { unit: u.name, status: 'error', note: 'the agent failed (check the log)', ...shared }
   const results = r.verified ? r.verified.results : []
   const mine = (r.scaffolded || [])[g.units.indexOf(u)]
   return {
@@ -242,7 +242,7 @@ const summary = units.map(u => {
     fixedOnce: r.fixed,
     failed: results.filter(x => x.status === 'failed').map(x => x.command),
     skipped: results.filter(x => x.status === 'skipped').map(x => x.command),
-    unresolved: mine ? mine.unresolved : ['生成エージェントの結果が無い'],
+    unresolved: mine ? mine.unresolved : ['no result from the generation agent'],
   }
 })
 
@@ -251,5 +251,5 @@ return {
   units: summary,
   conformance: conformance
     ? { violations: conformance.violations.length, summary: conformance.summary }
-    : { violations: null, summary: '適合チェックはスキップまたは失敗した' },
+    : { violations: null, summary: 'the conformance check was skipped or failed' },
 }

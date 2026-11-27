@@ -1,7 +1,7 @@
-# Go ディレクトリ構成リファレンス
+# Go directory layout reference
 
-`<app>` はバイナリ名、`<module>` は `go.mod` の module path。サンプル機能は Order（CreateOrder / GetOrder）を例にする。
-実際の生成では decision.json の `sampleFeature` に置き換える。
+`<app>` is the binary name and `<module>` is the module path in `go.mod`. The sample feature uses Order (CreateOrder / GetOrder) as the example.
+In actual generation, replace it with `sampleFeature` from decision.json.
 
 ## layered
 
@@ -10,8 +10,8 @@
 ├── cmd/<app>/main.go
 ├── internal/
 │   ├── config/config.go
-│   ├── handler/order_handler.go        # HTTP ⇄ service、DTO 変換、ステータスコード
-│   ├── service/order_service.go        # 業務処理。repository interface をここで定義
+│   ├── handler/order_handler.go        # HTTP ⇄ service, DTO conversion, status codes
+│   ├── service/order_service.go        # business logic; the repository interface is defined here
 │   ├── repository/
 │   │   ├── memory/order_repository.go
 │   │   └── postgres/order_repository.go
@@ -20,21 +20,21 @@
 ├── go.mod
 └── Makefile
 ```
-依存: `handler → service → model`、`repository/* → service(interface), model`
+Dependencies: `handler → service → model`, `repository/* → service(interface), model`
 
 ## clean
 
 ```
 .
-├── cmd/<app>/main.go                  # 配線のみ
+├── cmd/<app>/main.go                  # wiring only
 ├── internal/
 │   ├── domain/
-│   │   ├── order.go                   # Entity（不変条件をコンストラクタで守る）
+│   │   ├── order.go                   # Entity (the constructor enforces invariants)
 │   │   ├── order_id.go                # Value Object
-│   │   └── errors.go                  # ErrOrderNotFound など
+│   │   └── errors.go                  # ErrOrderNotFound and friends
 │   ├── usecase/
 │   │   ├── port.go                    # OrderRepository / Clock / IDGenerator interface
-│   │   ├── create_order.go            # 入力 DTO → ドメイン操作 → 出力 DTO
+│   │   ├── create_order.go            # input DTO → domain operation → output DTO
 │   │   ├── create_order_test.go
 │   │   └── get_order.go
 │   ├── adapter/
@@ -46,8 +46,8 @@
 │   │       ├── memory/order_repository.go
 │   │       └── postgres/order_repository.go
 │   ├── infrastructure/
-│   │   ├── postgres/db.go             # pgxpool の生成
-│   │   └── server/server.go           # http.Server と graceful shutdown
+│   │   ├── postgres/db.go             # creates the pgxpool
+│   │   └── server/server.go           # http.Server and graceful shutdown
 │   └── config/config.go
 ├── db/{migrations,query}/
 ├── .go-arch-lint.yml
@@ -55,7 +55,7 @@
 ├── go.mod
 └── Makefile
 ```
-依存: `adapter → usecase → domain`、`infrastructure → (adapter, usecase)`、`domain → なし`
+Dependencies: `adapter → usecase → domain`, `infrastructure → (adapter, usecase)`, `domain → none`
 
 ## hexagonal
 
@@ -66,33 +66,33 @@ internal/
 │   ├── port/
 │   │   ├── inbound.go     # type OrderService interface { Create(...); Get(...) }
 │   │   └── outbound.go    # type OrderRepository interface {...}; type EventPublisher interface {...}
-│   └── service/order_service.go   # inbound port の実装。outbound port にのみ依存
+│   └── service/order_service.go   # implements the inbound port; depends only on outbound ports
 └── adapter/
     ├── inbound/
-    │   ├── http/order_handler.go   # inbound port を呼ぶ
-    │   └── grpc/order_server.go    # （必要な場合）
+    │   ├── http/order_handler.go   # calls the inbound port
+    │   └── grpc/order_server.go    # (if needed)
     └── outbound/
         ├── postgres/order_repository.go
         ├── memory/order_repository.go
         └── nats/event_publisher.go
 ```
-依存: `adapter/inbound → core/port`、`adapter/outbound → core/port, core/domain`、`core/service → core/port, core/domain`
+Dependencies: `adapter/inbound → core/port`, `adapter/outbound → core/port, core/domain`, `core/service → core/port, core/domain`
 
-## ddd-clean（集約ごとに分割）
+## ddd-clean (split per aggregate)
 
 ```
 internal/
 ├── domain/
 │   ├── order/
 │   │   ├── order.go            # Aggregate Root
-│   │   ├── line_item.go        # 集約内 Entity
+│   │   ├── line_item.go        # Entity inside the aggregate
 │   │   ├── money.go            # Value Object
-│   │   ├── repository.go       # 集約単位の Repository interface（DDD ではドメイン層に置く）
-│   │   └── events.go           # OrderPlaced など Domain Event
-│   └── shared/                 # 共通 Value Object（慎重に最小限）
+│   │   ├── repository.go       # Repository interface per aggregate (in DDD it lives in the domain layer)
+│   │   └── events.go           # Domain Events such as OrderPlaced
+│   └── shared/                 # shared Value Objects (carefully kept minimal)
 ├── application/
 │   └── order/
-│       ├── place_order.go      # ユースケース（トランザクション境界）
+│       ├── place_order.go      # use case (transaction boundary)
 │       └── get_order.go
 ├── interfaces/http/order_handler.go
 └── infrastructure/
@@ -106,12 +106,12 @@ internal/
 internal/
 ├── feature/
 │   ├── createorder/
-│   │   ├── handler.go     # HTTP 入出力
-│   │   ├── command.go     # 入力検証と処理本体
-│   │   ├── store.go       # この機能専用の永続化 interface と実装
+│   │   ├── handler.go     # HTTP input/output
+│   │   ├── command.go     # input validation and the processing itself
+│   │   ├── store.go       # persistence interface and implementation for this feature only
 │   │   └── handler_test.go
 │   └── getorder/...
-└── platform/              # DB 接続、ロガー、ミドルウェアなど横断的関心事のみ
+└── platform/              # only cross-cutting concerns such as DB connections, the logger and middleware
 ```
 
 ## modular-monolith
@@ -122,51 +122,51 @@ internal/
 ├── internal/
 │   ├── modules/
 │   │   ├── ordering/
-│   │   │   ├── module.go          # New(deps) *Module; RegisterRoutes(mux); 公開ファサード
-│   │   │   ├── api.go             # 他モジュール向け公開 interface と DTO（ここだけ参照可）
-│   │   │   ├── domain/ usecase/ adapter/   # 内部は clean 等
+│   │   │   ├── module.go          # New(deps) *Module; RegisterRoutes(mux); the public facade
+│   │   │   ├── api.go             # public interfaces and DTOs for other modules (the only thing they may reference)
+│   │   │   ├── domain/ usecase/ adapter/   # clean or similar inside
 │   │   └── inventory/
 │   │       ├── module.go
 │   │       ├── api.go
 │   │       └── ...
 │   ├── platform/                  # DB, logger, eventbus(in-process), http server
 │   └── config/
-├── db/migrations/<module>/        # モジュールごとにスキーマ分離（ordering.orders など）
-└── .go-arch-lint.yml              # modules/<a>/** は modules/<b>/(api.go 以外) を参照禁止
+├── db/migrations/<module>/        # separate schema per module (ordering.orders, etc.)
+└── .go-arch-lint.yml              # modules/<a>/** must not reference modules/<b>/ (except api.go)
 ```
-モジュール間連携: (1) `api.go` の interface を main で注入、または (2) `platform/eventbus` によるインプロセスイベント。
+Integration between modules: (1) inject the interfaces from `api.go` in main, or (2) in-process events through `platform/eventbus`.
 
-## microservices（モノレポ）
+## microservices (monorepo)
 
 ```
 .
-├── api/proto/<svc>/v1/*.proto     # buf.yaml / buf.gen.yaml で生成
+├── api/proto/<svc>/v1/*.proto     # generated with buf.yaml / buf.gen.yaml
 ├── services/
-│   ├── ordering/                  # 独立 go.mod。内部は上記いずれかのパターン
+│   ├── ordering/                  # its own go.mod; one of the patterns above inside
 │   │   ├── cmd/server/main.go
 │   │   ├── internal/...
 │   │   ├── Dockerfile
 │   │   └── go.mod
 │   └── inventory/...
-├── pkg/                           # 横断的関心事のみ（otel 初期化、ログ設定）。ドメイン禁止
+├── pkg/                           # cross-cutting concerns only (otel setup, log configuration); no domain code
 │   └── go.mod
 ├── deploy/docker-compose.yml
 ├── go.work                        # use ./services/ordering ./services/inventory ./pkg
-└── Makefile                       # make build / test / lint を全サービスに対して実行
+└── Makefile                       # runs make build / test / lint for every service
 ```
 
 ## .go-arch-lint.yml
 
-**ゼロから書かず、プラグイン同梱の検証済みテンプレートを使う**（go-arch-lint v3 の形式は細部が厳しく、手書きすると読み込めないことがある）:
+**Do not write it from scratch; use the verified templates bundled with the plugin** (the go-arch-lint v3 format is strict in the details, and a hand-written one may fail to load):
 
-| 構成 | テンプレート |
+| Layout | Template |
 |---|---|
-| 単一モジュールの clean（hexagonal は名前を変える） | `<pluginRoot>/templates/go/go-arch-lint.clean.yml` |
-| モジュラーモノリス（各モジュール内は clean。API・worker など複数の起動点が 1 つの go.mod を共有してもよい） | `<pluginRoot>/templates/go/go-arch-lint.modular-monolith.yml` |
+| clean in a single module (rename for hexagonal) | `<pluginRoot>/templates/go/go-arch-lint.clean.yml` |
+| modular monolith (clean inside each module; several entrypoints such as an API and a worker may share one go.mod) | `<pluginRoot>/templates/go/go-arch-lint.modular-monolith.yml` |
 
-- どちらも `tests/go-arch-lint/` の fixture で「正しい構成で違反なし」「違反を入れると検出」をプラグインの CI で確認している
-- `workdir: .` で `cmd/**` も対象にし、`cmd` は `anyProjectDeps: true`（配線だけを行う）
-- **deepScan** は、usecase のコンストラクタへ外側の実装を注入する箇所を「usecase → infrastructure の依存」と誤って報告する。テンプレートのとおり、注入を受ける usecase 系のコンポーネントだけ `deepScan: false` にする（全体を off にしない）
-- go-arch-lint は標準ライブラリの import を検査しない。domain の `net/http` などは arch-forge の hooks と `/arch-forge:check` で検査する
-- 各コンポーネントは自分自身を `mayDependOn` に含める。含めないと、同じ層のサブパッケージ間の import（`domain` → `domain/money`）と外部テストパッケージ（`package domain_test`）が違反として報告される
-- domain、platform、config は自分自身（platform は config も）以外に依存できない
+- The plugin's CI confirms both against the fixtures in `tests/go-arch-lint/`: "no violations in the correct layout" and "an injected violation is detected"
+- `workdir: .` also covers `cmd/**`, and `cmd` has `anyProjectDeps: true` (it only does wiring)
+- **deepScan** wrongly reports places where outer implementations are injected into usecase constructors as "a usecase → infrastructure dependency". As in the templates, set `deepScan: false` only for the usecase-like components that receive injection (not for everything)
+- go-arch-lint does not check standard library imports. `net/http` and the like in domain are checked by the arch-forge hooks and `/arch-forge:check`
+- Every component includes itself in `mayDependOn`. Otherwise, imports between subpackages of the same layer (`domain` → `domain/money`) and external test packages (`package domain_test`) are reported as violations
+- domain, platform and config cannot depend on anything but themselves (platform may also depend on config)

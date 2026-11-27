@@ -1,88 +1,88 @@
-# フレームワーク・主要ライブラリの選定
+# Choosing frameworks and major libraries
 
-ユニット（独立デプロイ単位）ごとに、**役割ごと**（HTTP / RPC / DB アクセス / マイグレーション / メッセージング / テスト）に選ぶ。
-ドメイン層はどのフレームワークにも依存させないので、フレームワークの影響は adapter / infrastructure 層に閉じる。
-それでも乗り換えコストは高いので、選んだ理由・次点・却下理由を ADR に残す。
+Choose for each unit (independent deployment unit), **per role** (HTTP / RPC / DB access / migration / messaging / test).
+The domain layer does not depend on any framework, so a framework's influence stays within the adapter / infrastructure layers.
+Switching is still expensive, so record the reasons for the choice, the runner-up and the reasons for rejection in the ADR.
 
-## 1. 選定手順
+## 1. Selection procedure
 
-1. **制約を確認する**: brief の「技術スタックの希望・制約」（社内標準、チームの経験、指定ライブラリ）は最優先。制約があればそれを採用し、懸念だけ書く
-2. **必要機能を列挙する**: 公開 IF（REST / gRPC / GraphQL / WebSocket / SSE）、管理画面、ジョブ・キュー、認証、ファイルアップロード、多言語化
-3. **候補を 2〜3 個に絞る**: 下の言語別カタログの「選ぶ条件」に合うもの。カタログ外は、要件上必要な場合だけ候補にする
-4. **評価軸で比較する**（下表）。重みは requirements の上位品質特性から決める
-5. **保守状況を確認する**: 採用候補の最新リリース日・アーカイブ状況・セキュリティ対応を WebSearch / WebFetch で確認し、出典 URL を書く。最終リリースが 12 か月以上前、またはアーカイブ済みなら候補から外す
-6. **決めて記録する**: 役割ごとに「採用 / 次点 / 選定理由 / 次点を選ばなかった理由」を書く
+1. **Check the constraints**: "technology stack preferences and constraints" in the brief (internal standards, team experience, mandated libraries) come first. If there are constraints, adopt them and write only your concerns
+2. **List the required capabilities**: public interfaces (REST / gRPC / GraphQL / WebSocket / SSE), admin console, jobs and queues, authentication, file uploads, internationalization
+3. **Narrow down to 2–3 candidates**: those matching "When to choose" in the per-language catalog below. Consider anything outside the catalog only if the requirements need it
+4. **Compare on the evaluation axes** (table below). Set the weights from the top quality attributes in the requirements
+5. **Check the maintenance status**: check each candidate's latest release date, archive status and security response with WebSearch / WebFetch, and write the source URLs. Drop candidates whose last release is more than 12 months old, or that are archived
+6. **Decide and record**: for each role, write "chosen / runner-up / reason for the choice / why not the runner-up"
 
-## 2. 評価軸
+## 2. Evaluation axes
 
-| 評価軸 | 見ること |
+| Axis | What to look at |
 |---|---|
-| 要件適合 | 必要機能が標準またはメンテされた拡張で揃うか |
-| アーキテクチャ適合 | ドメインを分離しやすいか（DI、独自 Context の侵食度、ORM が Active Record か Data Mapper か） |
-| チーム適合 | チームの経験、学習コスト、採用市場での人の見つけやすさ |
-| 保守状況 | リリース頻度、メンテナ数、LTS・サポート期間、セキュリティ修正の速さ |
-| 性能・資源 | 要件の性能シナリオを満たすか（多くの業務アプリでは差は DB が支配的で、決め手にしない） |
-| ロックイン | 標準インターフェース互換（Go: `net/http`、PHP: PSR-7/15、Rust: tower）か、置き換えやすいか |
-| 生成サポート | arch-forge が雛形生成・検証できるか（下表の「生成」列） |
+| Requirements fit | Are the required capabilities available as standard or through maintained extensions |
+| Architecture fit | How easy is it to isolate the domain (DI, how invasive its own Context is, whether the ORM is Active Record or Data Mapper) |
+| Team fit | The team's experience, learning cost, how easy it is to find people in the hiring market |
+| Maintenance status | Release frequency, number of maintainers, LTS and support periods, speed of security fixes |
+| Performance and resources | Does it meet the performance scenarios in the requirements (in most business apps the DB dominates, so do not make it the deciding factor) |
+| Lock-in | Is it compatible with standard interfaces (Go: `net/http`, PHP: PSR-7/15, Rust: tower), and how easy is it to replace |
+| Generation support | Can arch-forge scaffold and verify it (the "Gen" column in the tables below) |
 
-## 3. 言語別カタログ
+## 3. Per-language catalog
 
-「生成」列: ◎ = サンプルコードあり、○ = 規約どおり生成できる（サンプルから差分で書く）、× = 生成対象外（選ぶ場合、scaffolder は最小構成だけを手書きし、未検証として報告する）
+"Gen" column: ◎ = sample code exists, ○ = can be generated following the conventions (written as a diff from the samples), × = not a generation target (if chosen, the scaffolder writes only a minimal setup by hand and reports it as unverified)
 
 ### Go
 
-| 役割 | 候補 | 選ぶ条件 | 注意 | 生成 |
+| Role | Candidate | When to choose | Watch out for | Gen |
 |---|---|---|---|---|
-| HTTP | 標準 `net/http`（1.22+） | 依存を最小にしたい。ルーティングが単純 | ミドルウェアは自作か小さなライブラリで補う | ◎ |
-| HTTP | chi | `net/http` 互換のまま、ミドルウェアやルートのグループ化を使いたい | 機能は少なめ。バリデーションは別ライブラリ | ○ |
-| HTTP | echo | バインド・バリデーション・エラーハンドラまで揃えたい | 独自 `echo.Context`。ハンドラ層に閉じ込める | ○ |
-| HTTP | gin | チームが gin に慣れている。採用で経験者を集めやすい | 独自 `gin.Context`。ハンドラ層に閉じ込める | ○ |
-| HTTP | fiber | fasthttp の性能が要件上必須な場合のみ | `net/http` 非互換で、標準のミドルウェアや計装を使えない | × |
-| RPC | connect-go（buf） | 新規の gRPC。ブラウザや HTTP/1.1 からも呼びたい | 既存の grpc-go 資産とは相互運用できる | ○ |
-| RPC | grpc-go | 既存の gRPC 資産、interceptor 群を使う | — | ○ |
-| DB | sqlc + pgx | SQL を書けるチーム。型安全・高速 | 動的クエリは別途組み立てる | ◎ |
-| DB | ent | スキーマ駆動、グラフ的な関連が多い | 生成コードをドメインモデルとして使わず、Repository で変換する | ○ |
-| DB | GORM | チームの経験を優先する、CRUD 中心 | Active Record 的でドメインへ漏れやすい。layered 以外では Repository 内に閉じる | ○ |
-| マイグレーション | goose / golang-migrate / Atlas | SQL ファイル管理なら goose か golang-migrate、宣言的に管理するなら Atlas | — | ○ |
-| メッセージング | nats.go / franz-go（Kafka）/ クラウド SDK | ブローカーに合わせる。抽象化が要るなら watermill | — | ○ |
-| テスト | `testing` + testcontainers-go | 標準で足りる。アサーションは testify を任意で使う | — | ◎ |
+| HTTP | standard `net/http` (1.22+) | you want minimal dependencies; simple routing | fill in middleware yourself or with small libraries | ◎ |
+| HTTP | chi | you want middleware and route grouping while staying `net/http`-compatible | fewer features; validation needs a separate library | ○ |
+| HTTP | echo | you want binding, validation and error handlers included | its own `echo.Context`; keep it inside the handler layer | ○ |
+| HTTP | gin | the team knows gin; easy to hire experienced people | its own `gin.Context`; keep it inside the handler layer | ○ |
+| HTTP | fiber | only if fasthttp performance is required by the requirements | not `net/http`-compatible, so standard middleware and instrumentation cannot be used | × |
+| RPC | connect-go (buf) | new gRPC; you also want calls from browsers and HTTP/1.1 | interoperates with existing grpc-go assets | ○ |
+| RPC | grpc-go | existing gRPC assets, using its interceptors | — | ○ |
+| DB | sqlc + pgx | a team that can write SQL; type-safe and fast | build dynamic queries separately | ◎ |
+| DB | ent | schema-driven, many graph-like relations | do not use the generated code as the domain model; convert in the Repository | ○ |
+| DB | GORM | prioritizing the team's experience, mostly CRUD | Active Record-like and leaks into the domain easily; outside layered, keep it inside the Repository | ○ |
+| Migration | goose / golang-migrate / Atlas | goose or golang-migrate for managing SQL files, Atlas for declarative management | — | ○ |
+| Messaging | nats.go / franz-go (Kafka) / cloud SDKs | match the broker; watermill if you need an abstraction | — | ○ |
+| Test | `testing` + testcontainers-go | the standard library is enough; testify for assertions is optional | — | ◎ |
 
 ### PHP
 
-| 役割 | 候補 | 選ぶ条件 | 注意 | 生成 |
+| Role | Candidate | When to choose | Watch out for | Gen |
 |---|---|---|---|---|
-| FW | Laravel | 画面のある Web アプリ・管理画面、高速な機能開発、経験者が多い | Facade と Eloquent がドメインへ漏れやすい。clean / DDD ではドメインを `src/` に分離 | ◎ |
-| FW | Symfony | 長期運用の業務システム、ヘキサゴナル / DDD、LTS 版で運用したい | 初期設定が多い。Doctrine（Data Mapper）と相性が良い | ○ |
-| FW | Slim 4 + PHP-DI | 小さな API・マイクロサービス、FW 依存を最小にしたい | 認証・バリデーション・ORM は自分で選ぶ（PSR-7/15 準拠） | ○ |
-| FW | CakePHP / Laminas Mezzio ほか | 既存資産がある場合のみ | — | × |
-| ORM | Eloquent / Doctrine ORM / PDO・Doctrine DBAL | Laravel なら Eloquent、Symfony なら Doctrine、Slim なら DBAL か PDO | Eloquent Model は Infrastructure 層に閉じ込め、Entity と変換する | ○ |
-| 実行環境 | PHP-FPM / FrankenPHP / Laravel Octane（Swoole・RoadRunner） | 性能要件が厳しいときだけ常駐型を検討 | 常駐型はグローバル状態・メモリリークに注意 | ○ |
-| キュー | Laravel Queue（Horizon）/ Symfony Messenger | FW に合わせる | — | ○ |
-| テスト・静的解析 | Pest / PHPUnit、PHPStan（Laravel は Larastan）、deptrac | Laravel は Pest、それ以外は PHPUnit を既定にする | — | ◎ |
+| Framework | Laravel | web apps with screens and admin consoles, fast feature development, many experienced people | Facades and Eloquent leak into the domain easily; in clean / DDD, separate the domain into `src/` | ◎ |
+| Framework | Symfony | long-lived business systems, hexagonal / DDD, running on an LTS version | lots of initial configuration; fits well with Doctrine (Data Mapper) | ○ |
+| Framework | Slim 4 + PHP-DI | small APIs and microservices, minimal framework dependency | choose authentication, validation and ORM yourself (PSR-7/15 compliant) | ○ |
+| Framework | CakePHP / Laminas Mezzio and others | only with existing assets | — | × |
+| ORM | Eloquent / Doctrine ORM / PDO or Doctrine DBAL | Eloquent for Laravel, Doctrine for Symfony, DBAL or PDO for Slim | keep Eloquent Models inside the Infrastructure layer and convert to Entities | ○ |
+| Runtime | PHP-FPM / FrankenPHP / Laravel Octane (Swoole, RoadRunner) | consider a long-running runtime only with strict performance requirements | with long-running runtimes, watch for global state and memory leaks | ○ |
+| Queue | Laravel Queue (Horizon) / Symfony Messenger | match the framework | — | ○ |
+| Test and static analysis | Pest / PHPUnit, PHPStan (Larastan for Laravel), deptrac | Pest for Laravel, PHPUnit by default otherwise | — | ◎ |
 
 ### Rust
 
-| 役割 | 候補 | 選ぶ条件 | 注意 | 生成 |
+| Role | Candidate | When to choose | Watch out for | Gen |
 |---|---|---|---|---|
-| HTTP | axum | 既定。tokio・tower のエコシステム、型安全な extractor | — | ◎ |
-| HTTP | actix-web | チームが actix に慣れている。成熟した機能群を使いたい | tower ミドルウェアをそのまま使えない。独自ランタイムの作法がある | ○ |
-| HTTP | poem / rocket / warp ほか | 特定機能（OpenAPI 自動生成など）が要件上必須な場合のみ | 採用例・情報量が少ない | × |
-| RPC | tonic + prost | gRPC | `build.rs` で `api/proto` から生成 | ○ |
-| DB | sqlx | SQL を書けるチーム、async、軽量 | コンパイル時検査（`query!`）はオフラインモードの準備が必要 | ◎ |
-| DB | SeaORM | ORM が欲しい、動的クエリが多い | Entity をドメインモデルとして使わず、Repository で変換する | ○ |
-| DB | diesel（+ diesel-async） | 強い型安全、同期処理でよい | async では diesel-async が必要 | ○ |
-| メッセージング | async-nats / rdkafka / lapin（RabbitMQ） | ブローカーに合わせる | rdkafka は C ライブラリに依存 | ○ |
-| テスト | `#[tokio::test]` + testcontainers | 標準で足りる | — | ◎ |
+| HTTP | axum | the default; the tokio and tower ecosystem, type-safe extractors | — | ◎ |
+| HTTP | actix-web | the team knows actix; you want its mature feature set | tower middleware cannot be used as is; it has its own runtime conventions | ○ |
+| HTTP | poem / rocket / warp and others | only if a specific feature (such as automatic OpenAPI generation) is required | fewer adoption examples and less information | × |
+| RPC | tonic + prost | gRPC | generate from `api/proto` in `build.rs` | ○ |
+| DB | sqlx | a team that can write SQL, async, lightweight | compile-time checks (`query!`) need offline mode set up | ◎ |
+| DB | SeaORM | you want an ORM, many dynamic queries | do not use Entities as the domain model; convert in the Repository | ○ |
+| DB | diesel (+ diesel-async) | strong type safety, synchronous is fine | async needs diesel-async | ○ |
+| Messaging | async-nats / rdkafka / lapin (RabbitMQ) | match the broker | rdkafka depends on a C library | ○ |
+| Test | `#[tokio::test]` + testcontainers | the standard tools are enough | — | ◎ |
 
-## 4. 組み合わせの指針
+## 4. Guidelines for combinations
 
-- **パターンとの相性**: layered + Laravel / GORM は自然。clean / hexagonal / DDD で Active Record 系 ORM（Eloquent、GORM）を使う場合は、Repository 実装の中に閉じ込めて変換コストを受け入れる
-- **マイクロサービス**: サービスごとに FW を変えない。言語と同じく **原則は統一** し、例外には理由を書く。可観測性（OpenTelemetry）の計装が揃っているものを選ぶ
-- **迷ったら**: Go は `net/http` + sqlc + pgx、PHP は要件に画面があれば Laravel、なければ Symfony、Rust は axum + sqlx。これを基準線にして、外れる場合に理由を書く
+- **Fit with the pattern**: layered + Laravel / GORM is natural. When using an Active Record ORM (Eloquent, GORM) with clean / hexagonal / DDD, keep it inside the Repository implementation and accept the conversion cost
+- **Microservices**: do not switch frameworks per service. As with the language, **unify as a rule** and write the reason for any exception. Choose ones with complete observability (OpenTelemetry) instrumentation
+- **When in doubt**: Go is `net/http` + sqlc + pgx; PHP is Laravel if the requirements include screens, otherwise Symfony; Rust is axum + sqlx. Use these as the baseline, and write the reason when deviating
 
-## 5. 出力の形式（案ドキュメントと ADR）
+## 5. Output format (option documents and ADRs)
 
-| ユニット | 役割 | 採用 | 次点 | 選定理由（評価軸） | 次点を選ばなかった理由 | 保守状況の確認（出典） |
+| Unit | Role | Chosen | Runner-up | Reason for the choice (axes) | Why not the runner-up | Maintenance status check (source) |
 |---|---|---|---|---|---|---|
 
-decision.json には `units[].framework`（主 FW）と `units[].libraries`（役割 → ライブラリ名）を書く。
+In decision.json, write `units[].framework` (the main framework) and `units[].libraries` (role → library name).

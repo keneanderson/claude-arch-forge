@@ -5,7 +5,7 @@ import (
 	"example.com/mm/internal/modules/inventory/usecase"
 )
 
-// Module はモジュールの配線（組み立て）だけを行う。
+// Module only wires (assembles) the module.
 type Module struct{ Stock StockChecker }
 
 func New() *Module {

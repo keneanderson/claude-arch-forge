@@ -3,32 +3,32 @@ paths:
   - "**/*.rs"
   - "**/Cargo.toml"
 ---
-# Rust のアーキテクチャ規約
+# Rust architecture conventions
 
-> [../common/architecture.md](../common/architecture.md) を Rust に当てはめた規約です。
+> Applies [../common/architecture.md](../common/architecture.md) to Rust.
 
-## 構成
+## Structure
 
-- clean / hexagonal / DDD では、層を Cargo workspace の crate で分ける。依存方向は `Cargo.toml` の `[dependencies]` で強制する
-- 単一 crate（layered / vertical-slice）では `pub(crate)` で可視性を絞る
-- port は application / domain crate に trait で定義し、infrastructure crate で実装する
-- バイナリ crate（api / app）は配線と起動だけを行う
+- In clean / hexagonal / DDD, split the layers into crates in a Cargo workspace. Enforce the dependency direction with `[dependencies]` in `Cargo.toml`
+- In a single crate (layered / vertical-slice), narrow visibility with `pub(crate)`
+- Define ports as traits in the application / domain crates, and implement them in the infrastructure crate
+- The binary crate (api / app) only does wiring and startup
 
-## 依存
+## Dependencies
 
-- domain crate の `Cargo.toml` に axum、sqlx、tokio、reqwest、tonic、diesel、sea-orm などを追加しない
-- 内側の crate から外側の crate（infrastructure、api、adapter-*）への依存を追加しない
-- モジュラーモノリス: モジュール crate 同士は `<module>-api` crate 経由でのみ依存する
-- 共通の依存は `[workspace.dependencies]` で版を揃える
+- Do not add axum, sqlx, tokio, reqwest, tonic, diesel, sea-orm and the like to the domain crate's `Cargo.toml`
+- Do not add dependencies from inner crates to outer crates (infrastructure, api, adapter-*)
+- Modular monolith: module crates depend on each other only through `<module>-api` crates
+- Align shared dependency versions with `[workspace.dependencies]`
 
-## コード
+## Code
 
-- ライブラリ crate のエラーは `thiserror` の列挙型で表す。`anyhow` はバイナリ crate だけで使う
-- HTTP ステータスへの変換は api crate の `IntoResponse` 実装だけで行う
-- `unwrap()` / `expect()` を本番コードのエラー処理に使わない（起動時の設定読み込みを除く）
-- 状態の共有は `Arc<AppState>`。グローバルな可変状態を使わない
+- Library crates represent errors with `thiserror` enums. Use `anyhow` only in binary crates
+- Convert to HTTP status only in the api crate's `IntoResponse` implementations
+- Do not use `unwrap()` / `expect()` for error handling in production code (except loading settings at startup)
+- Share state with `Arc<AppState>`. No global mutable state
 
-## 検証
+## Verification
 
 ```
 cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace

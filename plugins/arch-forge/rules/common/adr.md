@@ -2,26 +2,26 @@
 paths:
   - "docs/architecture/**"
 ---
-# ADR の運用
+# ADR practice
 
-> [architecture.md](architecture.md) の「変更の手順」を補足します。
+> Supplements "Change procedure" in [architecture.md](architecture.md).
 
-## いつ書くか
+## When to write one
 
-- 層・モジュール・サービスの境界を変える
-- 言語・フレームワーク・データストア・通信方式（同期 / 非同期）を変える
-- 依存ルールに例外を作る
-- decision.json を変更する
+- Changing layer, module or service boundaries
+- Changing the language, framework, data store or communication style (sync / async)
+- Making an exception to the dependency rules
+- Changing decision.json
 
-## 書き方
+## How to write one
 
-- ファイル名: `docs/architecture/adr/NNNN-<kebab-case-title>.md`（番号は既存の最大値 + 1）
-- 形式: 既存 ADR と同じ見出し（コンテキスト / 検討した選択肢 / 決定 / 依存ルール / 結果 / 見直しトリガー）
-- ステータス: `提案中` → ユーザーが承認したら `承認済み`。決定者はユーザー（Claude ではない）
-- 検討した選択肢は最低 2 つ。却下理由を 1 行ずつ書く
+- File name: `docs/architecture/adr/NNNN-<kebab-case-title>.md` (the number is the current maximum + 1)
+- Format: the same headings as the existing ADRs (Context / Options considered / Decision / Dependency rules / Consequences / Revisit triggers)
+- Status: `Proposed` → `Accepted` once the user approves. The decider is the user (not Claude)
+- At least two options considered, each with a one-line reason for rejection
 
-## 不変性
+## Immutability
 
-- **承認済みの ADR は書き換えない**。誤字修正以外の変更は、新しい ADR を作って置き換える
-- 置き換えるときは、旧 ADR のステータスを `置き換え済み（ADR-NNNN）` に変え、新 ADR から旧 ADR へリンクする
-- decision.json を変えたら、その変更を説明する ADR の番号を `adr` フィールドに記録する
+- **Never rewrite an accepted ADR**. For anything beyond fixing typos, create a new ADR that supersedes it
+- When superseding, change the old ADR's status to `Superseded by ADR-NNNN` and link from the new ADR to the old one
+- When decision.json changes, record the number of the ADR explaining the change in the `adr` field

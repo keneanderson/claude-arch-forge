@@ -1,71 +1,71 @@
 # ADR-{{NUMBER}}: {{TITLE}}
 
-- ステータス: 承認済み（Accepted）
-- 日付: {{DATE}}
-- 決定者: {{DECIDERS}}
-- 関連: [要件](../01-requirements.md) / [提案](../05-proposal.md) / [decision.json](../decision.json)
+- Status: Accepted
+- Date: {{DATE}}
+- Deciders: {{DECIDERS}}
+- Related: [requirements](../01-requirements.md) / [proposal](../05-proposal.md) / [decision.json](../decision.json)
 
-## コンテキスト
+## Context
 
-<!-- 解決したい課題、主要な要件・制約、品質特性の優先順位、規模クラスとその根拠 -->
+<!-- The problem to solve, key requirements and constraints, priority of quality attributes, the scale class and its rationale -->
 
-## 検討した選択肢
+## Options considered
 
-| 案 | 概要 | 主な利点 | 主な欠点 |
+| Option | Summary | Main advantages | Main drawbacks |
 |---|---|---|---|
 | A |  |  |  |
 | B |  |  |  |
 | C |  |  |  |
 
-## 決定
+## Decision
 
-<!-- 採用案。トポロジー / 内部パターン / 言語・フレームワーク / データストア / 通信方式 -->
+<!-- The chosen option. Topology / internal pattern / language and framework / data stores / communication style -->
 
-### フレームワーク・主要ライブラリ
+### Frameworks and major libraries
 
-| ユニット | 役割 | 採用 | 次点 | 選定理由 | 次点を選ばなかった理由 |
+| Unit | Role | Chosen | Runner-up | Why chosen | Why not the runner-up |
 |---|---|---|---|---|---|
 |  |  |  |  |  |  |
 
-<!-- 保守状況を確認した日付と出典。フレームワークの変更は新しい ADR で行う -->
+<!-- The date and source used to check maintenance status. Change frameworks with a new ADR -->
 
-### パッケージの分け方
+### Package split
 
-<!-- 層ごと / 機能ごと / hybrid と採用理由。採らなかった方の理由。共通パッケージ（platform）に置いてよいものの許可リスト -->
+<!-- By layer / by feature / hybrid and why. Why the other was not chosen. The allowlist of what may go in the shared package (platform) -->
 
-### ビルド単位とデプロイ単位
+### Build units and deployment units
 
-<!-- どのデプロイ単位（cmd/api、cmd/worker など）がどのビルド単位（go.mod など）を共有するか。共有しない場合は「各ユニットが独立」 -->
+<!-- Which deployment units (cmd/api, cmd/worker, etc.) share which build unit (go.mod, etc.). If none are shared, "each unit is independent" -->
 
-### 構成図
+### Diagram
 
 ```mermaid
 flowchart LR
-  %% C4 コンテナレベルの図
+  %% C4 container-level diagram
 ```
 
-### 依存ルール（機械的に検査する）
+### Dependency rules (checked mechanically)
 
-<!-- 例: domain は他のどのパッケージにも依存しない / modules/<a> は modules/<b>/internal を import しない -->
+<!-- e.g. domain depends on no other package / modules/<a> does not import modules/<b>/internal -->
 
-### 実装規約
+### Implementation conventions
 
-| ID | 規約 | 検査方法（arch-lint / grep / test / review） |
+| ID | Convention | How it is checked (arch-lint / grep / test / review) |
 |---|---|---|
 | C1 |  |  |
 
-### 環境と設定の既定
+### Environment and configuration defaults
 
-<!-- APP_ENV の未設定・未知の値は production として扱う。インメモリ実装・簡易モードを有効にする条件 -->
+<!-- Treat an unset or unknown APP_ENV as production. The conditions for enabling in-memory implementations and simplified modes -->
 
-## 結果（Consequences）
+## Consequences
 
-### 良くなること
+### What gets better
 
-### 悪くなること・受け入れるリスク
+### What gets worse and the risks accepted
 
-### 緩和策
+### Mitigations
 
-## 見直しトリガー
+## Revisit triggers
 
-<!-- この決定を再検討する条件。例: 注文モジュールのデプロイ頻度が他の 3 倍を超えたらサービス切り出しを検討 -->
+<!-- Conditions for reconsidering this decision. e.g. consider extracting a service if the ordering module deploys more than 3 times as often as the others -->

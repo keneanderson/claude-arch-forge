@@ -1,5 +1,5 @@
 {
-  "description": "arch-forge: 確定アーキテクチャ（decision.json / ADR）を前提にしたセッション文脈の注入、承認済み ADR の保護、依存方向の即時チェック、strict プロファイルでの停止前 arch-lint",
+  "description": "arch-forge: inject session context based on the confirmed architecture (decision.json / ADRs), protect accepted ADRs, check dependency direction right after edits, and run arch-lint before stopping in the strict profile",
   "hooks": {
     "SessionStart": [
       {

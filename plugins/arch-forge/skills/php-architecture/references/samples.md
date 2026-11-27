@@ -1,6 +1,6 @@
-# PHP サンプルコード（clean、Order の例）
+# PHP sample code (clean, Order example)
 
-## src/Ordering/Domain/OrderId.php（Value Object）
+## src/Ordering/Domain/OrderId.php (Value Object)
 
 ```php
 <?php
@@ -25,7 +25,7 @@ final readonly class OrderId
 }
 ```
 
-## src/Ordering/Domain/Order.php（Entity）
+## src/Ordering/Domain/Order.php (Entity)
 
 ```php
 <?php
@@ -103,9 +103,9 @@ final readonly class CreateOrderHandler
 }
 ```
 
-## tests/Unit/.../CreateOrderHandlerTest.php（Pest）
+## tests/Unit/.../CreateOrderHandlerTest.php (Pest)
 
-Application 層のテストは Infrastructure の実装に依存させず、テストダブルを `tests/Support/InMemoryOrderRepository.php`（`Tests\Support` 名前空間）に置く。
+Application layer tests do not depend on Infrastructure implementations; put the test double in `tests/Support/InMemoryOrderRepository.php` (the `Tests\Support` namespace).
 
 ```php
 it('creates an order', function () {
@@ -124,7 +124,7 @@ it('rejects non-positive amount', function () {
 })->throws(InvalidOrder::class);
 ```
 
-## app/Http/Controllers/Order/CreateOrderController.php（Laravel）
+## app/Http/Controllers/Order/CreateOrderController.php (Laravel)
 
 ```php
 final class CreateOrderController
@@ -157,7 +157,7 @@ final class OrderingServiceProvider extends ServiceProvider
 }
 ```
 
-## Symfony の場合（config/services.yaml）
+## With Symfony (config/services.yaml)
 
 ```yaml
 services:

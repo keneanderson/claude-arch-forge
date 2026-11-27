@@ -1,43 +1,43 @@
 ---
 name: scaffold
-description: 確定済みの docs/architecture/decision.json から、アーキテクチャに沿ったディレクトリとサンプル実装を生成し、ビルド・テスト・依存方向チェックまで行う。/arch-forge:design で設計を確定した後に生成だけをやり直したいとき、特定のユニットだけ生成したいときに使う。 Generates directories and an end-to-end sample feature from a confirmed docs/architecture/decision.json and verifies build, tests and dependency rules. Use to (re)run scaffolding after the design is confirmed.
-argument-hint: "[ユニット名 ...（省略時は全ユニット）]"
+description: From a confirmed docs/architecture/decision.json, generates directories and a sample implementation that follow the architecture, and runs the build, tests and dependency direction checks. Use after confirming the design with /arch-forge:design to redo only the generation, or to generate specific units only.
+argument-hint: "[unit name ... (all units if omitted)]"
 disable-model-invocation: true
 allowed-tools: Read, Write, Glob, Grep, AskUserQuestion, Workflow, Agent, Bash(ls *), Bash(git status *), Bash(python3 *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-toolchains.sh *)
 ---
 
 # arch-forge: scaffold
 
-対象ユニット: $ARGUMENTS（空なら全ユニット）
+Target units: $ARGUMENTS (all units if empty)
 
-## 現在の状態（自動取得）
+## Current state (collected automatically)
 
-- decision.json: !`ls docs/architecture/decision.json 2>/dev/null || echo "(なし)"`
-- 未コミットの変更: !`git status --porcelain 2>/dev/null | head -20 || true`
-- ツールチェーン（PATH に加え goenv / asdf / mise / /usr/local/go / Homebrew も探した結果）:
+- decision.json: !`ls docs/architecture/decision.json 2>/dev/null || echo "(none)"`
+- Uncommitted changes: !`git status --porcelain 2>/dev/null | head -20 || true`
+- Toolchains (searched in PATH plus goenv / asdf / mise / /usr/local/go / Homebrew):
 !`bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-toolchains.sh report`
 
-## 手順
+## Procedure
 
-1. `docs/architecture/decision.json` が無ければ「先に `/arch-forge:design` でアーキテクチャを確定してください」と伝えて終了する
-2. decision.json を Read し、スキーマ（`${CLAUDE_PLUGIN_ROOT}/templates/decision.schema.json`）の必須項目が揃っているか確認する
-3. 対象ユニットを決める。$ARGUMENTS が指定されていれば一致する `units[].name` のみ。存在しない名前があれば一覧を示して確認する
-   - 同じ `path` を共有するユニットは 1 つのビルド単位。その一部だけを指定された場合も、共通部分が既にあるか確認し、無ければ同じ path の全ユニットを対象にするか確認する
-4. 生成先に既存ファイルがある場合（各ユニットの `path` を `ls`）や未コミットの変更がある場合は、上書きの可能性を伝え AskUserQuestion で続行を確認する
-5. 上のツールチェーンの検出結果で、対象ユニットの言語が「なし」なら、AskUserQuestion で「インストールしてから生成する（推奨）」/「場所を指定する」/「検証なしで生成する」を確認する。「直し方（推奨）」が出ていれば（PATH の go がシムで失敗）、design スキルの Step 6 事前確認と同じく、版のファイル（`--pin` の出力）を置くか確認して置き、PATH の go が動くことを確かめる。それでも PATH の go が動かない場合だけ、`bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-toolchains.sh --env` の出力の引用符の中（`:$PATH` を除く）を `toolchainPath` として控える。Docker Compose・golangci-lint の版の注意も 1〜2 行で伝える
-6. Workflow ツールで起動する:
+1. If `docs/architecture/decision.json` does not exist, say "Confirm the architecture with `/arch-forge:design` first" and stop
+2. Read decision.json and check that the required fields of the schema (`${CLAUDE_PLUGIN_ROOT}/templates/decision.schema.json`) are present
+3. Decide the target units. If $ARGUMENTS is given, only the matching `units[].name`. If a name does not exist, show the list and confirm
+   - Units sharing the same `path` are one build unit. If only some of them are specified, check whether the shared parts already exist; if not, confirm whether to target all units with that path
+4. If files already exist at the destination (`ls` each unit's `path`) or there are uncommitted changes, explain that files may be overwritten and confirm with AskUserQuestion whether to continue
+5. If the toolchain detection result above shows a target unit's language as "not found", confirm with AskUserQuestion: "Install it, then generate (recommended)" / "Specify the location" / "Generate without verification". If "Fix (recommended)" appears (go on PATH fails through a shim), do as in the Step 6 pre-checks of the design skill: confirm, put the version file (the output of `--pin`), and check that go on PATH works. Only if go on PATH still does not work, note as `toolchainPath` what is inside the quotes (excluding `:$PATH`) of the output of `bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-toolchains.sh --env`. Also mention any Docker Compose or golangci-lint version caveats in 1–2 lines
+6. Start it with the Workflow tool:
    ```json
    {
      "scriptPath": "${CLAUDE_PLUGIN_ROOT}/workflows/scaffold.js",
      "args": {
        "pluginRoot": "${CLAUDE_PLUGIN_ROOT}",
        "docsDir": "docs/architecture",
-       "toolchainPath": "<手順 5 のディレクトリ。無ければ省略>",
+       "toolchainPath": "<the directories from step 5; omit if none>",
        "units": [{ "name": "<unit>", "language": "<go|php|rust>", "path": "<path>", "entrypoint": "<entrypoint>" }]
      }
    }
    ```
-   同じ path を持つユニットは、ワークフローが 1 つのビルド単位として順番に生成し、検証を 1 回にまとめる。
-   Workflow ツールが使えない場合は、Agent ツールで `arch-forge:foundation-builder` → ビルド単位ごとに `arch-forge:<language>-scaffolder`（別々のビルド単位は 1 メッセージで並列。同じ path を共有するユニットは完了通知を待って 1 つずつ）→ ビルド単位ごとに `arch-forge:scaffold-verifier`（失敗があれば scaffolder で 1 回修正して再検証）→ `arch-forge:foundation-builder`（sync モード。ドキュメントの同期とユニット別ルール `.claude/rules/arch-forge/units/<unit>.md` の生成）→ `arch-forge:architecture-critic`（conformance モード）の順に実行する。Agent は非同期で返ることがあるので、次の段は前の段の完了通知を受け取ってから起動する（ポーリングしない。待つ間は進捗を 1 行伝えてターンを終えてよい）。各プロンプトに `toolchainPath` の `export PATH=...` の指示を入れる
-7. 完了通知を待つ。報告の前に `python3 -I ${CLAUDE_PLUGIN_ROOT}/hooks/arch_hooks.py doctor` で hooks の動作を確認する
-8. ユニットごとの passed / failed / skipped、未解決事項、適合チェックの違反数、hooks の確認結果を報告する。失敗が残っていれば修正するか確認する
+   The workflow generates units with the same path in order as one build unit, and verifies them once.
+   If the Workflow tool is unavailable, run with the Agent tool: `arch-forge:foundation-builder` → `arch-forge:<language>-scaffolder` per build unit (separate build units in parallel in one message; units sharing a path one at a time, waiting for each completion notification) → `arch-forge:scaffold-verifier` per build unit (on failure, one fix by the scaffolder and re-verify) → `arch-forge:foundation-builder` (sync mode: syncs the docs and generates the per-unit rules `.claude/rules/arch-forge/units/<unit>.md`) → `arch-forge:architecture-critic` (conformance mode), in that order. Agent may return asynchronously, so start each stage only after receiving the previous stage's completion notification (do not poll; while waiting, you may report progress in one line and end the turn). Put the `export PATH=...` instruction for `toolchainPath` in each prompt
+7. Wait for the completion notification. Before reporting, check that the hooks work with `python3 -I ${CLAUDE_PLUGIN_ROOT}/hooks/arch_hooks.py doctor`
+8. Report passed / failed / skipped per unit, the unresolved items, the number of conformance violations and the hook check result. If failures remain, ask whether to fix them

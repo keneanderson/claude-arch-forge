@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# arch-forge hook ランナー
+# arch-forge hook runner
 #
-# - プロファイル（userConfig の hook_profile、環境変数で上書き可）が off なら何もしない
-# - python3 が無い環境では何もしない（hook の失敗でセッションを止めない）
-# - 実処理は arch_hooks.py（標準ライブラリのみ）に委譲する
+# - Does nothing if the profile (userConfig hook_profile, overridable by an environment variable) is off
+# - Does nothing if python3 is not available (a hook failure never stops the session)
+# - Delegates the actual work to arch_hooks.py (standard library only)
 set -u
 
 profile="${ARCH_FORGE_HOOK_PROFILE:-${CLAUDE_PLUGIN_OPTION_HOOK_PROFILE:-standard}}"

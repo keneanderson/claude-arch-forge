@@ -1,28 +1,28 @@
 #!/usr/bin/env bash
-# arch-forge: ツールチェーンの検出（bash と coreutils だけで動かす）
+# arch-forge: toolchain detection (runs with only bash and coreutils)
 #
-# PATH の go / php / cargo が「無い」または「シム（goenv / asdf / mise）が版未設定で失敗する」場合でも、
-# 実際にインストールされている実体を探して報告する。設計・生成・検証の各段で同じ判定を使うために共有する。
+# Even when go / php / cargo on PATH are "missing" or "a shim (goenv / asdf / mise) fails because no version is set",
+# finds and reports the real installed binaries. Shared so design, generation and verification all use the same judgment.
 #
-# 使い方:
-#   detect-toolchains.sh             人が読む形式（design / scaffold スキルの冒頭で表示）
-#   detect-toolchains.sh --go-bin    使える go の絶対パスだけを 1 行で出す（無ければ exit 1）
-#   detect-toolchains.sh --env       使える実体のディレクトリを PATH に足す export 文を出す
+# Usage:
+#   detect-toolchains.sh             human-readable format (shown at the start of the design / scaffold skills)
+#   detect-toolchains.sh --go-bin    print only the absolute path of a working go, on one line (exit 1 if none)
+#   detect-toolchains.sh --env       print an export statement that adds the working binaries' directories to PATH
 #
-# 表示だけが目的なので、失敗しても exit 0 で終わる（--go-bin を除く）。
+# It is only for display, so it exits 0 even on failure (except --go-bin).
 set -u
 
 mode="${1:-report}"
 
-# ---- 補助 ---------------------------------------------------------------------
+# ---- Helpers ---------------------------------------------------------------------
 
 # "go version go1.26.2 darwin/arm64" → "1.26.2"
 semver_of() { printf '%s\n' "$1" | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1; }
 
-# 版の大きい順に並べる（"版<TAB>パス" の行を受け取る）
+# Sort by version, newest first (takes "version<TAB>path" lines)
 sort_desc() { sort -t. -k1,1nr -k2,2nr -k3,3nr; }
 
-# 候補パスのうち実行できるものを重複なく列挙する
+# List the executable candidate paths, without duplicates
 expand_candidates() {
   local seen="" p
   for p in "$@"; do
@@ -54,7 +54,7 @@ go_candidates() {
     /snap/bin/go
 }
 
-# 実際に動く go を "版<TAB>パス" で列挙する。GOTOOLCHAIN=local で、手元の版そのものを調べる
+# List the go binaries that actually work as "version<TAB>path". Uses GOTOOLCHAIN=local to check the local version itself
 working_gos() {
   local g out
   while IFS= read -r g; do
@@ -65,7 +65,7 @@ working_gos() {
 }
 
 pick_go() {
-  # PATH の go が動けばそれを優先する（ユーザーが選んだ版）。動かなければ最も新しい実体
+  # Prefer go on PATH if it works (the version the user chose). Otherwise the newest real binary
   local path_go
   path_go="$(command -v go 2>/dev/null || true)"
   if [ -n "$path_go" ] && GOTOOLCHAIN=local "$path_go" version >/dev/null 2>&1; then
@@ -78,7 +78,7 @@ pick_go() {
 # ---- PHP / Rust --------------------------------------------------------------
 
 pick_first_working() {
-  # $1: バージョン確認の引数, 以降: 候補
+  # $1: the version-check argument, rest: candidates
   local arg="$1" p
   shift
   while IFS= read -r p; do
@@ -117,11 +117,11 @@ cargo_bin() {
     /opt/homebrew/bin/cargo /usr/local/bin/cargo
 }
 
-# ---- バージョン管理ツールのシムを直す方法 -------------------------------------------
-# PATH の go が goenv / asdf のシムで「版が未設定」で失敗する場合、プロジェクトに版のファイルを置けば
-# PATH の go がそのまま動く。PATH を書き換えたり絶対パスで実行したりすると、Claude Code では
-# コマンドごとに承認が必要になる（go-arch-lint も PATH の go を呼ぶ）ので、こちらを優先する。
-# 出力: "<ファイル名><TAB><書く行>"。直せない・直す必要が無い場合は何も出さない
+# ---- How to fix version-manager shims -------------------------------------------
+# When go on PATH fails through a goenv / asdf shim because "no version is set", placing a version file in the project
+# makes go on PATH work as is. Rewriting PATH or running by absolute path makes Claude Code ask for approval
+# on every command (go-arch-lint also calls go on PATH), so this is preferred.
+# Output: "<file name><TAB><line to write>". Prints nothing if it cannot be fixed or needs no fix
 pin_hint() {
   local path_go="$1" want="$2" goenv_root="${GOENV_ROOT:-$HOME/.goenv}" vers v file line
   [ -n "$path_go" ] || return 1
@@ -134,7 +134,7 @@ pin_hint() {
     *) return 1 ;;
   esac
   [ -n "$vers" ] || return 1
-  # 実体として選んだ版がそのツールに入っていればそれを、無ければ最も新しい版を使う
+  # Use the version chosen as the real binary if that tool has it, otherwise the newest version
   if printf '%s\n' "$vers" | grep -qx "$want"; then
     v="$want"
   else
@@ -145,7 +145,7 @@ pin_hint() {
   printf '%s\t%s\n' "$file" "$(printf "$line" "$v")"
 }
 
-# ---- モード ------------------------------------------------------------------
+# ---- Modes ------------------------------------------------------------------
 
 if [ "$mode" = "--pin" ]; then
   g="$(pick_go)"
@@ -175,7 +175,7 @@ if [ "$mode" = "--env" ]; then
   exit 0
 fi
 
-# ---- 人が読む形式 --------------------------------------------------------------
+# ---- Human-readable format --------------------------------------------------------------
 
 # Go
 path_go="$(command -v go 2>/dev/null || true)"
@@ -188,64 +188,64 @@ go_bin="$(pick_go)"
 if [ -n "$go_bin" ]; then
   ver="$(GOTOOLCHAIN=local "$go_bin" version 2>/dev/null)"
   tc="$("$go_bin" env GOTOOLCHAIN 2>/dev/null)"
-  [ -n "$tc" ] || tc="未対応（Go 1.21 未満）"
-  echo "go: あり ${go_bin}（$(semver_of "$ver")、GOTOOLCHAIN=${tc}）"
+  [ -n "$tc" ] || tc="unsupported (Go below 1.21)"
+  echo "go: found ${go_bin} ($(semver_of "$ver"), GOTOOLCHAIN=${tc})"
   if [ -n "$path_go" ] && [ "$path_go" != "$go_bin" ]; then
-    echo "  - PATH の go（${path_go}）は失敗する: ${path_go_err:-不明なエラー}"
+    echo "  - go on PATH (${path_go}) fails: ${path_go_err:-unknown error}"
     pin="$(pin_hint "$path_go" "$(semver_of "$ver")" || true)"
     if [ -n "$pin" ]; then
-      echo "  - 直し方（推奨）: プロジェクトのルートに $(printf '%s' "$pin" | cut -f1) を置き、「$(printf '%s' "$pin" | cut -f2)」と書く（既にあれば行を足す）。PATH の go がそのまま動き、コマンドごとの承認も要らない"
-      echo "  - 直せない場合: PATH の先頭に $(dirname "$go_bin") を足す（Claude Code では PATH の変更や絶対パスでの実行に毎回承認が要る）"
+      echo "  - Fix (recommended): put $(printf '%s' "$pin" | cut -f1) at the project root containing \"$(printf '%s' "$pin" | cut -f2)\" (add the line if the file exists). go on PATH then works as is, with no per-command approval"
+      echo "  - If that is not possible: prepend $(dirname "$go_bin") to PATH (Claude Code asks for approval every time PATH is changed or a binary is run by absolute path)"
     else
-      echo "  - 直し方: PATH の先頭に $(dirname "$go_bin") を足す（Claude Code では PATH の変更や絶対パスでの実行に毎回承認が要る）"
+      echo "  - Fix: prepend $(dirname "$go_bin") to PATH (Claude Code asks for approval every time PATH is changed or a binary is run by absolute path)"
     fi
   elif [ -z "$path_go" ]; then
-    echo "  - PATH に go が無い。上の実体を使う（PATH の先頭に $(dirname "$go_bin") を足す）"
+    echo "  - No go on PATH. Use the binary above (prepend $(dirname "$go_bin") to PATH)"
   fi
   others="$(working_gos | sort_desc | awk -F'\t' -v me="$go_bin" '$2 != me { printf "%s %s, ", $2, $1 }')"
-  [ -n "$others" ] && echo "  - 他に見つかった go: ${others%, }"
+  [ -n "$others" ] && echo "  - Other go binaries found: ${others%, }"
   case "$tc" in
-    auto|*+auto|path|*+path) echo "  - go.mod の go / toolchain 行が手元より新しい場合、GOTOOLCHAIN=${tc} により必要な版が取得される（ネットワークが必要）" ;;
+    auto|*+auto|path|*+path) echo "  - If the go / toolchain line in go.mod is newer than the local version, GOTOOLCHAIN=${tc} fetches the required version (needs network)" ;;
   esac
 else
   if [ -n "$path_go" ]; then
-    echo "go: なし（PATH の go は失敗: ${path_go_err:-不明}。goenv / asdf / mise / /usr/local/go / Homebrew も確認した）"
+    echo "go: not found (go on PATH fails: ${path_go_err:-unknown}; also checked goenv / asdf / mise / /usr/local/go / Homebrew)"
   else
-    echo "go: なし（PATH、goenv、asdf、mise、~/sdk、/usr/local/go、Homebrew を確認した）"
+    echo "go: not found (checked PATH, goenv, asdf, mise, ~/sdk, /usr/local/go, Homebrew)"
   fi
 fi
 if [ -f go.mod ]; then
   gomod_go="$(awk '$1=="go"{print $2; exit}' go.mod)"
   gomod_tc="$(awk '$1=="toolchain"{print $2; exit}' go.mod)"
-  echo "  - このディレクトリの go.mod: go ${gomod_go:-なし} / toolchain ${gomod_tc:-なし}"
+  echo "  - go.mod in this directory: go ${gomod_go:-none} / toolchain ${gomod_tc:-none}"
 fi
 
 # PHP
 php="$(php_bin || true)"
 if [ -n "$php" ]; then
-  echo "php: あり ${php}（$("$php" -r 'echo PHP_VERSION;' 2>/dev/null)）"
+  echo "php: found ${php} ($("$php" -r 'echo PHP_VERSION;' 2>/dev/null))"
 else
-  echo "php: なし（PATH、phpenv、asdf、mise、Homebrew を確認した）"
+  echo "php: not found (checked PATH, phpenv, asdf, mise, Homebrew)"
 fi
 composer="$(composer_bin || true)"
-[ -n "$composer" ] && echo "  - composer: ${composer}（$("$composer" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)）"
-[ -n "$php" ] && [ -z "$composer" ] && echo "  - composer: なし"
+[ -n "$composer" ] && echo "  - composer: ${composer} ($("$composer" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1))"
+[ -n "$php" ] && [ -z "$composer" ] && echo "  - composer: not found"
 
 # Rust
 cargo="$(cargo_bin || true)"
 if [ -n "$cargo" ]; then
-  echo "cargo: あり ${cargo}（$("$cargo" --version 2>/dev/null | awk '{print $2}')）"
+  echo "cargo: found ${cargo} ($("$cargo" --version 2>/dev/null | awk '{print $2}'))"
 else
-  echo "cargo: なし（PATH、~/.cargo/bin、asdf、mise、Homebrew を確認した）"
+  echo "cargo: not found (checked PATH, ~/.cargo/bin, asdf, mise, Homebrew)"
 fi
 
-# 補助ツール（生成物をこれらの版に合わせるか、事前に警告するために使う）
+# Auxiliary tools (used to match the generated files to these versions, or to warn in advance)
 tools=""
 if command -v docker >/dev/null 2>&1; then
   dc="$(docker compose version --short 2>/dev/null || true)"
-  tools="${tools}docker compose ${dc:-なし（docker はある）}; "
+  tools="${tools}docker compose ${dc:-not found (docker is present)}; "
 else
-  tools="${tools}docker: なし; "
+  tools="${tools}docker: not found; "
 fi
 find_tool() {
   local name="$1" p
@@ -258,15 +258,15 @@ if [ -n "$gl" ]; then
   glv="$("$gl" version 2>/dev/null | head -1)"
   gl_ver="$(printf '%s' "$glv" | grep -oE 'version v?[0-9]+\.[0-9]+\.[0-9]+' | head -1 | awk '{print $2}')"
   gl_go="$(printf '%s' "$glv" | grep -oE 'go[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)"
-  tools="${tools}golangci-lint ${gl_ver:-?}${gl_go:+（${gl_go} でビルド。これより新しい Go のコードは解析できない）}; "
+  tools="${tools}golangci-lint ${gl_ver:-?}${gl_go:+ (built with ${gl_go}; cannot analyze code for a newer Go)}; "
 fi
 for t in go-arch-lint sqlc oapi-codegen buf govulncheck; do
   p="$(find_tool "$t")"
   [ -z "$p" ] && continue
   case "$p" in
-    */shims/*) "$p" --help >/dev/null 2>&1 || { tools="${tools}${t}: ${p}（シムが失敗する。版が未設定）; "; continue; } ;;
+    */shims/*) "$p" --help >/dev/null 2>&1 || { tools="${tools}${t}: ${p} (the shim fails; no version set); "; continue; } ;;
   esac
   tools="${tools}${t}: ${p}; "
 done
-echo "補助ツール: ${tools%; }"
+echo "Auxiliary tools: ${tools%; }"
 exit 0

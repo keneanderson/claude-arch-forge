@@ -1,4 +1,4 @@
-"""arch-forge hooks のテスト（標準ライブラリのみ）
+"""Tests for the arch-forge hooks (standard library only)
 
 python3 -m unittest discover -s tests/hooks -v
 """
@@ -18,24 +18,27 @@ RUNNER = ROOT / "plugins" / "arch-forge" / "hooks" / "run-hook.sh"
 
 DECISION = {
     "version": 1,
-    "project": {"name": "shop", "summary": "テスト用", "goModulePath": "example.com/shop"},
+    "project": {"name": "shop", "summary": "for tests", "goModulePath": "example.com/shop"},
     "topology": "modular-monolith",
     "repoLayout": "single",
     "units": [
         {"name": "app", "kind": "app", "language": "go", "pattern": "clean", "path": ".",
          "framework": "chi", "libraries": {"db": "sqlc+pgx", "migration": "goose"},
-         "responsibilities": ["注文"], "modules": [{"name": "ordering", "pattern": "clean"}]},
+         "responsibilities": ["orders"], "modules": [{"name": "ordering", "pattern": "clean"}]},
     ],
     "shared": {},
     "scaffold": {},
 }
 
 ADR_ACCEPTED = textwrap.dedent("""\
-    # ADR-0001: アプリケーションアーキテクチャ
+    # ADR-0001: Application architecture
 
-    - ステータス: 承認済み
-    - 決定者: ユーザー
+    - Status: Accepted
+    - Deciders: user
     """)
+
+# The same ADR written in Japanese ("Status: Accepted"); the hook matches Japanese status words too.
+ADR_ACCEPTED_JA = "# ADR-0001\n\n- \u30b9\u30c6\u30fc\u30bf\u30b9: \u627f\u8a8d\u6e08\u307f\n"
 
 
 def run(cmd: str, payload: dict, cwd: Path, profile: str = "standard") -> dict | None:
@@ -72,7 +75,7 @@ class SessionStartTest(unittest.TestCase):
             out = run("session-start", {"hook_event_name": "SessionStart"}, p.root, "minimal")
             ctx = out["hookSpecificOutput"]["additionalContext"]
             self.assertIn("modular-monolith", ctx)
-            self.assertIn("ユニット app", ctx)
+            self.assertIn("Unit app", ctx)
             self.assertIn("/arch-forge:rules", ctx)
             self.assertIn("framework=chi", ctx)
             self.assertIn("db=sqlc+pgx", ctx)
@@ -112,15 +115,20 @@ class PreEditTest(unittest.TestCase):
         self.p.close()
 
     def test_accepted_adr_edit_asks_in_standard(self):
-        out = run("pre-edit", {"tool_name": "Edit", "tool_input": {"file_path": self.adr, "new_string": "別の決定"}}, self.p.root)
+        out = run("pre-edit", {"tool_name": "Edit", "tool_input": {"file_path": self.adr, "new_string": "another decision"}}, self.p.root)
         self.assertEqual(out["hookSpecificOutput"]["permissionDecision"], "ask")
 
     def test_accepted_adr_edit_denied_in_strict(self):
-        out = run("pre-edit", {"tool_name": "Edit", "tool_input": {"file_path": self.adr, "new_string": "別の決定"}}, self.p.root, "strict")
+        out = run("pre-edit", {"tool_name": "Edit", "tool_input": {"file_path": self.adr, "new_string": "another decision"}}, self.p.root, "strict")
         self.assertEqual(out["hookSpecificOutput"]["permissionDecision"], "deny")
 
+    def test_accepted_adr_in_japanese_is_protected(self):
+        ja = self.p.write("docs/architecture/adr/0002-ja.md", ADR_ACCEPTED_JA)
+        out = run("pre-edit", {"tool_name": "Edit", "tool_input": {"file_path": str(ja), "new_string": "another decision"}}, self.p.root)
+        self.assertEqual(out["hookSpecificOutput"]["permissionDecision"], "ask")
+
     def test_marking_superseded_is_allowed(self):
-        out = run("pre-edit", {"tool_name": "Edit", "tool_input": {"file_path": self.adr, "new_string": "- ステータス: 置き換え済み（ADR-0002）"}}, self.p.root, "strict")
+        out = run("pre-edit", {"tool_name": "Edit", "tool_input": {"file_path": self.adr, "new_string": "- Status: Superseded by ADR-0002"}}, self.p.root, "strict")
         self.assertIsNone(out)
 
     def test_new_adr_is_allowed(self):
@@ -163,7 +171,7 @@ class PostEditGoTest(unittest.TestCase):
     def test_usecase_test_importing_adapter_warns(self):
         out = self.edit("internal/modules/ordering/usecase/create_test.go",
                         'package usecase\n\nimport "example.com/shop/internal/modules/ordering/adapter/memory"\n')
-        self.assertIn("テスト", out["hookSpecificOutput"]["additionalContext"])
+        self.assertIn("test in an inner layer", out["hookSpecificOutput"]["additionalContext"])
 
     def test_cross_module_internal_reference_warns(self):
         out = self.edit("internal/modules/ordering/usecase/create.go",
@@ -190,8 +198,8 @@ class PostEditOtherLanguagesTest(unittest.TestCase):
     def setUp(self):
         self.p = Project(with_decision=False)
         decision = {**DECISION, "topology": "microservices", "repoLayout": "monorepo", "units": [
-            {"name": "billing", "kind": "service", "language": "php", "pattern": "clean", "path": "services/billing", "responsibilities": ["請求"]},
-            {"name": "catalog", "kind": "service", "language": "rust", "pattern": "clean", "path": "services/catalog", "responsibilities": ["商品"]},
+            {"name": "billing", "kind": "service", "language": "php", "pattern": "clean", "path": "services/billing", "responsibilities": ["billing"]},
+            {"name": "catalog", "kind": "service", "language": "rust", "pattern": "clean", "path": "services/catalog", "responsibilities": ["products"]},
             {"name": "evil", "kind": "service", "language": "go", "pattern": "clean", "path": "../outside", "responsibilities": ["x"]},
         ]}
         self.p.write("docs/architecture/decision.json", json.dumps(decision))
@@ -278,9 +286,9 @@ SHARED_DECISION = {
         {"name": "api", "kind": "app", "language": "go", "pattern": "clean", "path": ".", "entrypoint": "cmd/api",
          "packaging": "by-feature", "responsibilities": ["API"]},
         {"name": "worker", "kind": "worker", "language": "go", "pattern": "layered", "path": ".", "entrypoint": "cmd/worker",
-         "responsibilities": ["ジョブ"]},
+         "responsibilities": ["jobs"]},
     ],
-    "conventions": [{"id": "C1", "rule": "モジュール間は api.go 経由で呼ぶ", "check": "arch-lint"}],
+    "conventions": [{"id": "C1", "rule": "Call other modules through api.go", "check": "arch-lint"}],
 }
 
 
@@ -304,18 +312,18 @@ class SharedBuildUnitTest(unittest.TestCase):
         ctx = run("session-start", {}, self.p.root, "minimal")["hookSpecificOutput"]["additionalContext"]
         self.assertIn("entrypoint=cmd/api", ctx)
         self.assertIn("packaging=by-feature", ctx)
-        self.assertIn("ユニット api, worker が共有する 1 つのビルド単位", ctx)
-        self.assertIn("C1 モジュール間は api.go 経由で呼ぶ", ctx)
+        self.assertIn("one build unit shared by units api, worker", ctx)
+        self.assertIn("C1 Call other modules through api.go", ctx)
 
     def test_post_edit_picks_the_unit_owning_the_entrypoint(self):
-        # worker は layered なので、worker の起動点の下では層の逆流を警告しない
+        # worker is layered, so no layer-backflow warning under worker's entrypoint
         path = self.p.write("cmd/worker/usecase/run.go",
                             'package usecase\nimport "example.com/shop/internal/adapter/http"\n')
         self.assertIsNone(run("post-edit", {"tool_input": {"file_path": str(path)}}, self.p.root))
         path = self.p.write("cmd/api/usecase/run.go",
                             'package usecase\nimport "example.com/shop/internal/adapter/http"\n')
         out = run("post-edit", {"tool_input": {"file_path": str(path)}}, self.p.root)
-        self.assertIn("ユニット api", out["hookSpecificOutput"]["additionalContext"])
+        self.assertIn("(unit api", out["hookSpecificOutput"]["additionalContext"])
 
 
 class DoctorTest(unittest.TestCase):
@@ -324,9 +332,9 @@ class DoctorTest(unittest.TestCase):
         try:
             p.write("internal/domain/order.go", "package domain\n")
             report = run_doctor(p.root)
-            self.assertIn("OK decision.json を読めた", report)
-            self.assertIn("OK セッション開始時の文脈注入", report)
-            self.assertIn("OK ユニット app: internal/domain をドメイン層と認識", report)
+            self.assertIn("OK read decision.json", report)
+            self.assertIn("OK session-start context injection", report)
+            self.assertIn("OK unit app: recognized internal/domain as the domain layer", report)
         finally:
             p.close()
 
@@ -336,20 +344,20 @@ class DoctorTest(unittest.TestCase):
             p.write("docs/architecture/decision.json", json.dumps(SHARED_DECISION, ensure_ascii=False))
             p.write("internal/domain/order.go", "package domain\n")
             report = run_doctor(p.root)
-            self.assertEqual(report.count("ドメイン層と認識"), 1)
-            self.assertIn("ユニット api+worker", report)
+            self.assertEqual(report.count("as the domain layer"), 1)
+            self.assertIn("unit api+worker", report)
         finally:
             p.close()
 
     def test_reports_ng_without_decision_and_warns_without_domain_dir(self):
         p = Project(with_decision=False)
         try:
-            self.assertIn("NG decision.json を読めない", run_doctor(p.root))
+            self.assertIn("NG cannot read decision.json", run_doctor(p.root))
         finally:
             p.close()
         p = Project()
         try:
-            self.assertIn("ドメイン層のディレクトリ", run_doctor(p.root))
+            self.assertIn("no domain layer directory", run_doctor(p.root))
         finally:
             p.close()
 

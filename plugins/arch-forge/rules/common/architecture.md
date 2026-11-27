@@ -1,34 +1,34 @@
-# アーキテクチャ規約（共通）
+# Architecture conventions (common)
 
-このプロジェクトのアーキテクチャは `docs/architecture/decision.json` と `docs/architecture/adr/` で確定しています。
-ユニットごとの層の場所は `units/<unit>.md` を参照してください。
+This project's architecture is fixed by `docs/architecture/decision.json` and `docs/architecture/adr/`.
+See `units/<unit>.md` for where each unit's layers live.
 
-## 依存ルール
+## Dependency rules
 
-- 依存は内側に向ける: `adapter / infrastructure → usecase / application → domain`
-- domain はフレームワーク・ORM・DB ドライバ・HTTP・ロガー実装に依存しない（標準ライブラリと値オブジェクトのみ）
-- 外部 I/O が必要なときは、内側に port（interface / trait）を定義し、外側で実装して起動時に注入する
-- テストも依存ルールに従う。内側の層のテストは外側の実装を import しない。テストダブルはテスト内に置く
-- モジュラーモノリスでは、他モジュールの公開 API（Go: モジュールのルートパッケージ、PHP: `Contracts/`）だけを参照する
-- マイクロサービスでは、他サービスのコード・DB を直接参照しない。API 契約（`api/openapi`、`api/proto`）かイベントで連携する
+- Dependencies point inward: `adapter / infrastructure → usecase / application → domain`
+- domain does not depend on frameworks, ORMs, DB drivers, HTTP or logger implementations (standard library and value objects only)
+- When external I/O is needed, define a port (interface / trait) on the inner side, implement it on the outer side, and inject it at startup
+- Tests follow the dependency rules too. Tests of inner layers do not import outer implementations. Keep test doubles inside the tests
+- In a modular monolith, reference only other modules' public APIs (Go: the module's root package, PHP: `Contracts/`)
+- In microservices, never reference another service's code or DB directly. Integrate through API contracts (`api/openapi`, `api/proto`) or events
 
-## 変更の手順
+## Change procedure
 
-| やりたいこと | 手順 |
+| What you want | Procedure |
 |---|---|
-| ユースケース追加 | domain（必要なら）→ usecase と port → adapter → 配線 → テスト、の順に内側から作る |
-| エンドポイント追加 | 先に API 契約を更新し、adapter のハンドラは usecase を呼ぶだけにする |
-| 新しい外部サービス・DB | port を内側に定義 → infrastructure に実装 → 配線。domain には入れない |
-| 層・モジュール・サービス境界の変更 | **先に ADR を書く**（`adr.md` 参照）。decision.json の変更は ADR とセットで行う |
+| Add a use case | Build from the inside out: domain (if needed) → usecase and port → adapter → wiring → tests |
+| Add an endpoint | Update the API contract first, and keep the adapter's handler to just calling the usecase |
+| A new external service or DB | Define a port on the inner side → implement it in infrastructure → wire it. Never put it in domain |
+| Change layer, module or service boundaries | **Write an ADR first** (see `adr.md`). Change decision.json together with the ADR |
 
-## 禁止
+## Forbidden
 
-- 依存ルール違反を `// TODO` や lint の除外設定で黙らせない。必要なら ADR に例外として記録する
-- 「とりあえず」共有パッケージ（`common`、`util`、`shared`）にドメインモデルを置かない
-- 設定値・秘密情報をコードに書かない（環境変数から読む）
-- 設定漏れで危険な動作にしない。環境（`APP_ENV`）の既定は本番相当にし、インメモリ実装・暗号化なし接続・簡易モードは `APP_ENV=local` を明示したときだけ有効にする
+- Silencing dependency rule violations with `// TODO` or lint exclusions. If needed, record an exception in an ADR
+- Putting domain models in "for now" shared packages (`common`, `util`, `shared`)
+- Writing settings or secrets in code (read them from environment variables)
+- Dangerous behavior when a setting is missing. The environment (`APP_ENV`) defaults to production-equivalent; in-memory implementations, unencrypted connections and simplified modes are enabled only when `APP_ENV=local` is set explicitly
 
-## 検査
+## Checks
 
-- 構造を変えたら `/arch-forge:check` を実行し、`docs/architecture/07-conformance.md` の違反を 0 にする
-- 依存方向 lint（`make arch-lint`）を CI と同じ条件で通す
+- After changing the structure, run `/arch-forge:check` and bring the violations in `docs/architecture/07-conformance.md` to 0
+- Pass the dependency-direction lint (`make arch-lint`) under the same conditions as CI

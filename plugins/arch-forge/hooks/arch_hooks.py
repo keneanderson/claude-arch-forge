@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""arch-forge hooks（標準ライブラリのみ）
+"""arch-forge hooks (standard library only)
 
-サブコマンド:
-  session-start  確定アーキテクチャの要約をセッション文脈に注入する（minimal 以上）
-  pre-edit       承認済み ADR と decision.json の編集を保護する（standard 以上）
-  post-edit      編集したファイルの依存方向をすぐに検査する（standard 以上）
-  stop           変更のあるユニットで arch-lint を実行する（strict のみ）
-  doctor         hooks が decision.json を読めるか、何を注入・検査するかを表示する（完了報告前の動作確認用。常に実行）
+Subcommands:
+  session-start  inject a summary of the confirmed architecture into the session context (minimal and above)
+  pre-edit       protect accepted ADRs and decision.json from edits (standard and above)
+  post-edit      check the dependency direction of the edited file right away (standard and above)
+  stop           run arch-lint on units with changes (strict only)
+  doctor         show whether the hooks can read decision.json and what they inject and check (a self-check before reporting completion; always runs)
 
-プロファイル（ARCH_FORGE_HOOK_PROFILE）:
-  minimal  文脈注入のみ
-  standard 文脈注入 + 警告（ブロックしない。承認済み ADR の編集は確認を求める）
-  strict   standard の警告をブロックに格上げし、停止前に arch-lint を実行する
+Profiles (ARCH_FORGE_HOOK_PROFILE):
+  minimal  context injection only
+  standard context injection + warnings (never blocks; editing an accepted ADR asks for confirmation)
+  strict   upgrades the standard warnings to blocks, and runs arch-lint before stopping
 
-どの失敗でもセッションを止めない: 例外はすべて握りつぶして exit 0 で終わる。
-decision.json が無いプロジェクトでは何もしない。
+No failure ever stops the session: every exception is swallowed and the hook exits 0.
+Does nothing in projects without decision.json.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ PROFILES = ("minimal", "standard", "strict")
 
 CODE_EXT = {".go", ".php", ".rs"}
 
-# 層の判定に使うディレクトリ名（小文字で比較）。0 が最も内側。
+# Directory names used to decide the layer (compared in lowercase). 0 is the innermost.
 INNER = {"domain", "entity", "entities"}
 MIDDLE = {"usecase", "usecases", "application", "app_service", "appservice"}
 OUTER = {
@@ -42,7 +42,7 @@ OUTER = {
     "presentation", "interfaces", "controller", "controllers", "persistence",
 }
 
-# ドメイン層が依存してはいけない外部ライブラリ
+# External libraries the domain layer must not depend on
 GO_FORBIDDEN_IN_DOMAIN = (
     "net/http", "database/sql", "github.com/jackc/pgx", "gorm.io/", "entgo.io/",
     "github.com/jmoiron/sqlx", "github.com/labstack/echo", "github.com/gin-gonic/",
@@ -62,7 +62,7 @@ RUST_FORBIDDEN_CRATES_IN_DOMAIN = tuple(c.replace("_", "-") for c in RUST_FORBID
 SAFE_REL_PATH = re.compile(r"^(\.|[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*)$")
 
 
-# --------------------------------------------------------------------------- 入出力
+# --------------------------------------------------------------------------- I/O
 
 
 def read_input() -> dict:
@@ -140,14 +140,14 @@ def cmd_session_start(data: dict) -> None:
     if decision is None:
         if docs.is_dir() and any((docs / f).exists() for f in ("00-brief.md", "05-proposal.md")):
             emit(context("SessionStart",
-                         "[arch-forge] docs/architecture/ に設計途中のドキュメントがあり、decision.json はまだ無い。"
-                         "アーキテクチャ設計の続きは /arch-forge:design で再開できる（Step 0 で途中から再開）。"))
+                         "[arch-forge] docs/architecture/ has in-progress design documents, but no decision.json yet. "
+                         "Continue the architecture design with /arch-forge:design (Step 0 resumes from where it stopped)."))
         return
 
-    lines = ["[arch-forge] このプロジェクトのアーキテクチャは確定済み。コードを変更するときは次に従うこと。"]
+    lines = ["[arch-forge] This project's architecture is confirmed. Follow these rules when changing code."]
     proj = decision.get("project") or {}
-    lines.append(f"- プロジェクト: {proj.get('name', '?')} / トポロジー: {decision.get('topology', '?')} / "
-                 f"リポジトリ構成: {decision.get('repoLayout', '?')}")
+    lines.append(f"- Project: {proj.get('name', '?')} / topology: {decision.get('topology', '?')} / "
+                 f"repository layout: {decision.get('repoLayout', '?')}")
     for u in safe_units(decision)[:12]:
         mods = ", ".join(m.get("name", "") for m in (u.get("modules") or []) if isinstance(m, dict))
         fw = str(u.get("framework") or "").strip()
@@ -155,7 +155,7 @@ def cmd_session_start(data: dict) -> None:
         stack = ", ".join(f"{k}={v}" for k, v in list(libs.items())[:6] if isinstance(v, str))
         ep = str(u.get("entrypoint") or "").strip()
         pk = str(u.get("packaging") or "").strip()
-        lines.append(f"- ユニット {u.get('name')}: {u.get('language')} / {u.get('pattern')} / path={u['path']}"
+        lines.append(f"- Unit {u.get('name')}: {u.get('language')} / {u.get('pattern')} / path={u['path']}"
                      + (f" / entrypoint={ep}" if ep else "")
                      + (f" / packaging={pk}" if pk else "")
                      + (f" / framework={fw}" if fw else "")
@@ -163,21 +163,21 @@ def cmd_session_start(data: dict) -> None:
                      + (f" / modules=[{mods}]" if mods else ""))
     shared = shared_build_units(safe_units(decision))
     for path, names in shared.items():
-        lines.append(f"- path={path} はユニット {', '.join(names)} が共有する 1 つのビルド単位（共通部分を変えると全員に影響する）")
+        lines.append(f"- path={path} is one build unit shared by units {', '.join(names)} (changing shared parts affects all of them)")
     conv = [c for c in (decision.get("conventions") or []) if isinstance(c, dict) and c.get("id") and c.get("rule")]
     if conv:
-        lines.append("- 実装規約: " + " / ".join(f"{c['id']} {str(c['rule'])[:80]}" for c in conv[:9]))
+        lines.append("- Conventions: " + " / ".join(f"{c['id']} {str(c['rule'])[:80]}" for c in conv[:9]))
     adrs = sorted(p.name for p in (root / ADR_DIR).glob("*.md")) if (root / ADR_DIR).is_dir() else []
     if adrs:
-        lines.append(f"- ADR: {', '.join(adrs[:10])}（docs/architecture/adr/）")
+        lines.append(f"- ADRs: {', '.join(adrs[:10])} (docs/architecture/adr/)")
     rules_dir = root / ".claude" / "rules" / "arch-forge"
     if rules_dir.is_dir():
-        lines.append("- 依存ルールの詳細は .claude/rules/arch-forge/ にある（該当ファイルを開くと自動で読み込まれる）")
+        lines.append("- Detailed dependency rules are in .claude/rules/arch-forge/ (loaded automatically when you open a matching file)")
     else:
-        lines.append("- .claude/rules/arch-forge/ が無い。/arch-forge:rules で依存ルールを導入できる")
-    lines.append("- 依存は内側（domain）に向ける。層・モジュール・サービスの境界や、フレームワーク・主要ライブラリを変える判断は新しい ADR を書いてから行う")
-    lines.append("- 承認済み ADR は書き換えない（置き換える ADR を新規に作る）。構造を変えたら /arch-forge:check で検査する")
-    lines.append(f"- hook プロファイル: {profile()}")
+        lines.append("- .claude/rules/arch-forge/ does not exist. Install the dependency rules with /arch-forge:rules")
+    lines.append("- Dependencies point inward (to domain). Write a new ADR before changing layer, module or service boundaries, or the framework or major libraries")
+    lines.append("- Never rewrite an accepted ADR (create a new ADR that supersedes it). After changing the structure, check it with /arch-forge:check")
+    lines.append(f"- Hook profile: {profile()}")
     emit(context("SessionStart", "\n".join(lines)))
 
 
@@ -187,6 +187,7 @@ def context(event: str, text: str) -> dict:
 
 # --------------------------------------------------------------------------- pre-edit
 
+# The Japanese alternatives match ADRs written in Japanese: ADRs are generated in the user's language.
 ACCEPTED_RE = re.compile(
     r"^\s*(?:[-*]\s*)?(?:\*\*)?(?:ステータス|状態|status)(?:\*\*)?\s*[:：|]\s*(?:\*\*)?\s*(承認済み|採用|accepted|approved)",
     re.IGNORECASE | re.MULTILINE,
@@ -214,7 +215,7 @@ def cmd_pre_edit(data: dict) -> None:
         return
     target = root / rel
 
-    # 承認済み ADR の書き換え
+    # Rewriting an accepted ADR
     if rel.parent == ADR_DIR and rel.suffix == ".md" and target.is_file():
         try:
             current = target.read_text(encoding="utf-8")
@@ -223,9 +224,9 @@ def cmd_pre_edit(data: dict) -> None:
         if not ACCEPTED_RE.search(current):
             return
         if SUPERSEDE_RE.search(edit_payload(tool_input)):
-            return  # ステータスを「置き換え済み」等に変える編集は許可
-        reason = (f"{rel} は承認済みの ADR。ADR は不変として扱い、変更が必要なら新しい ADR を作成して"
-                  "旧 ADR のステータスを「置き換え済み（ADR-XXXX）」に変えること。")
+            return  # allow edits that change the status to superseded or similar
+        reason = (f"{rel} is an accepted ADR. Treat ADRs as immutable: if a change is needed, create a new ADR and "
+                  "change the old ADR's status to \"Superseded by ADR-XXXX\".")
         decision = "deny" if at_least("strict") else "ask"
         emit({"hookSpecificOutput": {
             "hookEventName": "PreToolUse",
@@ -234,10 +235,10 @@ def cmd_pre_edit(data: dict) -> None:
         }})
         return
 
-    # decision.json の書き換え
+    # Rewriting decision.json
     if rel == DECISION and target.is_file():
-        msg = ("[arch-forge] decision.json は確定済みアーキテクチャの契約。変更する場合は同じ変更を説明する ADR を追加し、"
-               "変更後に /arch-forge:rules（ルール再生成）と /arch-forge:check（適合チェック）を実行すること。")
+        msg = ("[arch-forge] decision.json is the contract for the confirmed architecture. To change it, add an ADR that explains the same change, "
+               "and afterwards run /arch-forge:rules (regenerate the rules) and /arch-forge:check (conformance check).")
         if at_least("strict"):
             emit({"hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
@@ -282,7 +283,7 @@ def unit_for(rel: PurePosixPath, units: list[dict]) -> dict | None:
                 best = u
     if best is None:
         return None
-    # 同じ path を共有するユニットのうち、起動点の下のファイルならそのユニットを選ぶ
+    # Among units sharing the same path, pick the one whose entrypoint the file is under
     inner = rel.as_posix() if best["path"] == "." else rel.as_posix()[len(best["path"]) + 1:]
     for u in units:
         ep = str(u.get("entrypoint") or "").strip().strip("/")
@@ -332,13 +333,13 @@ def check_go(rel: PurePosixPath, src: str, root: Path, unit: dict) -> list[str]:
     for imp in imports:
         internal = bool(mod) and (imp == mod or imp.startswith(mod + "/"))
         if layer == 0 and not internal and any(imp == f.rstrip("/") or imp.startswith(f) for f in GO_FORBIDDEN_IN_DOMAIN):
-            issues.append(f'ドメイン層が "{imp}" を import している（ドメインはフレームワーク・DB・ロガー実装に依存しない）')
+            issues.append(f'the domain layer imports "{imp}" (the domain must not depend on frameworks, DBs or logger implementations)')
         if internal and layer is not None and pattern not in ("layered", "vertical-slice"):
             rest = imp[len(mod):].strip("/").split("/") if imp != mod else []
             target = layer_of(rest)
             if target is not None and target > layer:
-                kind = "テスト" if is_test else "コード"
-                issues.append(f'内側の層の{kind}が外側の層 "{imp}" を import している（依存は内側に向ける。テストダブルはテスト内に置く）')
+                kind = "test" if is_test else "code"
+                issues.append(f'{kind} in an inner layer imports the outer layer "{imp}" (dependencies point inward; keep test doubles inside the tests)')
         if internal and my_module:
             rest = imp[len(mod):].strip("/").split("/") if imp != mod else []
             low = [r.lower() for r in rest]
@@ -346,7 +347,7 @@ def check_go(rel: PurePosixPath, src: str, root: Path, unit: dict) -> list[str]:
                 i = low.index("modules")
                 other = rest[i + 1] if i + 1 < len(rest) else None
                 if other and other != my_module and len(rest) > i + 2:
-                    issues.append(f'モジュール {my_module} が他モジュール {other} の内部 "{imp}" を参照している（公開 API のルートパッケージ経由にする）')
+                    issues.append(f'module {my_module} references "{imp}", internal to another module {other} (go through its public API root package)')
     return issues
 
 
@@ -363,15 +364,15 @@ def check_php(rel: PurePosixPath, src: str, unit: dict) -> list[str]:
     for use in php_uses(src):
         segs = use.split("\\")
         if layer == 0 and any(use == f.rstrip("\\") or use.startswith(f) for f in PHP_FORBIDDEN_IN_DOMAIN):
-            issues.append(f"ドメイン層が {use} を use している（ドメインはフレームワーク・ORM・HTTP に依存しない）")
+            issues.append(f"the domain layer uses {use} (the domain must not depend on frameworks, ORMs or HTTP)")
             continue
         framework = any(use.startswith(f) for f in PHP_FORBIDDEN_IN_DOMAIN)
         if not framework and layer is not None and pattern not in ("layered", "vertical-slice"):
             target = layer_of(segs[:-1])
             if target is not None and target > layer:
-                issues.append(f"内側の層が外側の層 {use} を use している（依存は内側に向ける）")
+                issues.append(f"an inner layer uses the outer layer {use} (dependencies point inward)")
         if my_module and len(segs) > 2 and segs[0] == "Modules" and segs[1] != my_module and segs[2] != "Contracts":
-            issues.append(f"モジュール {my_module} が他モジュール {segs[1]} の内部 {use} を参照している（Contracts の interface 経由にする）")
+            issues.append(f"module {my_module} references {use}, internal to another module {segs[1]} (go through its Contracts interfaces)")
     return issues
 
 
@@ -394,13 +395,13 @@ def check_rust(rel: PurePosixPath, src: str, unit: dict) -> list[str]:
             head_layer = layer_of([head])
         if layer == 0 and head in RUST_FORBIDDEN_IN_DOMAIN and head not in seen:
             seen.add(head)
-            issues.append(f"ドメイン層が {head} を使っている（ドメイン crate はフレームワーク・DB・ランタイムに依存しない）")
+            issues.append(f"the domain layer uses {head} (the domain crate must not depend on frameworks, DBs or runtimes)")
         elif (layer is not None and head_layer is not None and head_layer > layer
               and pattern not in ("layered", "vertical-slice")):
             key = segs[1] if head in ("crate", "super", "self") else head
             if key not in seen:
                 seen.add(key)
-                issues.append(f"内側の層が外側の層 {key} を参照している（依存は内側に向ける）")
+                issues.append(f"an inner layer references the outer layer {key} (dependencies point inward)")
     return issues
 
 
@@ -412,9 +413,9 @@ def check_cargo_toml(rel: PurePosixPath, src: str) -> list[str]:
         for name in re.findall(r"^\s*([A-Za-z0-9_-]+)\s*=", section, re.MULTILINE):
             n = name.lower()
             if n in RUST_FORBIDDEN_CRATES_IN_DOMAIN or n.replace("-", "_") in RUST_FORBIDDEN_IN_DOMAIN:
-                issues.append(f"ドメイン crate の Cargo.toml が {name} に依存している")
+                issues.append(f"the domain crate's Cargo.toml depends on {name}")
             elif layer_of([n]) in (1, 2):
-                issues.append(f"ドメイン crate が外側の crate {name} に依存している（依存は内側に向ける）")
+                issues.append(f"the domain crate depends on the outer crate {name} (dependencies point inward)")
     return issues
 
 
@@ -453,9 +454,9 @@ def cmd_post_edit(data: dict) -> None:
 
     if not issues:
         return
-    body = (f"[arch-forge] {rel} に依存ルール違反の可能性がある（ユニット {unit.get('name')} / {unit.get('pattern')}）:\n"
+    body = (f"[arch-forge] {rel} may violate the dependency rules (unit {unit.get('name')} / {unit.get('pattern')}):\n"
             + "\n".join(f"- {i}" for i in dict.fromkeys(issues))
-            + "\n意図した変更なら ADR に理由を書く。そうでなければ port（interface / trait）を内側に定義して依存を逆転させる。")
+            + "\nIf the change is intended, write the reason in an ADR. Otherwise define a port (interface / trait) on the inner side and invert the dependency.")
     if at_least("strict"):
         emit({"decision": "block", "reason": body})
     else:
@@ -507,7 +508,7 @@ def cmd_stop(data: dict) -> None:
     done: set[str] = set()
     for u in safe_units(decision):
         p = u["path"]
-        if p in done:  # 同じビルド単位を共有するユニットは 1 回だけ検査する
+        if p in done:  # check units sharing the same build unit only once
             continue
         done.add(p)
         touched = [c for c in changed if Path(c).suffix in CODE_EXT and (p == "." or c.startswith(p + "/"))]
@@ -521,10 +522,10 @@ def cmd_stop(data: dict) -> None:
                 continue
             if r.returncode != 0:
                 tail = "\n".join((r.stdout + r.stderr).strip().splitlines()[-20:])
-                failures.append(f"## {u.get('name')}: `{' '.join(cmd)}` が失敗（exit {r.returncode}）\n{tail}")
+                failures.append(f"## {u.get('name')}: `{' '.join(cmd)}` failed (exit {r.returncode})\n{tail}")
     if failures:
         emit({"decision": "block",
-              "reason": "[arch-forge] 依存方向チェックが失敗した。違反を修正するか、意図的なら ADR を追加してから終了すること。\n\n"
+              "reason": "[arch-forge] The dependency direction check failed. Fix the violations, or if they are intentional, add an ADR before finishing.\n\n"
                         + "\n\n".join(failures)})
 
 
@@ -548,20 +549,20 @@ def find_domain_dirs(unit_dir: Path, limit: int = 5) -> list[str]:
 
 
 def cmd_doctor(data: dict) -> None:
-    """動作確認。結果を人が読む形で stdout に出す（hook としては登録しない）"""
+    """Self-check. Prints a human-readable result to stdout (not registered as a hook)"""
     root = project_dir(data)
-    out = [f"arch-forge hooks doctor（プロファイル: {os.environ.get('ARCH_FORGE_HOOK_PROFILE') or os.environ.get('CLAUDE_PLUGIN_OPTION_HOOK_PROFILE') or 'standard'}）",
-           f"- プロジェクト: {root}"]
+    out = [f"arch-forge hooks doctor (profile: {os.environ.get('ARCH_FORGE_HOOK_PROFILE') or os.environ.get('CLAUDE_PLUGIN_OPTION_HOOK_PROFILE') or 'standard'})",
+           f"- Project: {root}"]
     decision = load_decision(root)
     if decision is None:
-        out.append("- NG decision.json を読めない（無いか JSON が壊れている）。hooks は何もしない")
+        out.append("- NG cannot read decision.json (missing or invalid JSON). The hooks do nothing")
         print("\n".join(out))
         return
     units = safe_units(decision)
     skipped = len(decision.get("units") or []) - len(units)
-    out.append(f"- OK decision.json を読めた（ユニット {len(units)} 個" + (f"、path が不正で除外 {skipped} 個" if skipped else "") + "）")
+    out.append(f"- OK read decision.json ({len(units)} units" + (f", {skipped} excluded for an invalid path" if skipped else "") + ")")
 
-    # session-start で注入される文脈
+    # Context injected by session-start
     buf = []
     global emit
     real_emit = emit
@@ -571,24 +572,24 @@ def cmd_doctor(data: dict) -> None:
     finally:
         emit = real_emit  # type: ignore[assignment]
     ctx = buf[0]["hookSpecificOutput"]["additionalContext"] if buf else ""
-    out.append(f"- {'OK' if ctx else 'NG'} セッション開始時の文脈注入: {len(ctx.splitlines())} 行")
+    out.append(f"- {'OK' if ctx else 'NG'} session-start context injection: {len(ctx.splitlines())} lines")
 
-    # post-edit の検査対象（ドメイン層として認識されるディレクトリ）と、検出の試験
+    # What post-edit checks (directories recognized as the domain layer), and a detection probe
     shared = shared_build_units(units)
     seen_paths: set[str] = set()
     for u in units:
         if u["path"] in seen_paths:
-            continue  # 同じビルド単位は 1 回だけ確認する
+            continue  # check the same build unit only once
         seen_paths.add(u["path"])
         if u["path"] in shared:
             u = {**u, "name": "+".join(shared[u["path"]])}
         unit_dir = root / u["path"]
         if not unit_dir.is_dir():
-            out.append(f"- NG ユニット {u.get('name')}: path={u['path']} が存在しない")
+            out.append(f"- NG unit {u.get('name')}: path={u['path']} does not exist")
             continue
         domains = find_domain_dirs(unit_dir)
         if not domains:
-            out.append(f"- 注意 ユニット {u.get('name')}: ドメイン層のディレクトリ（{', '.join(INNER_DIR_NAMES)}）が見つからない。依存方向チェックは外側の層どうしだけになる")
+            out.append(f"- WARN unit {u.get('name')}: no domain layer directory ({', '.join(INNER_DIR_NAMES)}) found. The dependency direction check covers only the outer layers")
             continue
         rel = PurePosixPath(Path(domains[0]).relative_to(root).as_posix()) / "probe.go"
         lang = str(u.get("language", ""))
@@ -600,12 +601,12 @@ def cmd_doctor(data: dict) -> None:
             issues = check_rust(rel.with_suffix(".rs"), "use axum::Router;\n", u)
         else:
             issues = []
-        out.append(f"- {'OK' if issues else 'NG'} ユニット {u.get('name')}: {rel.parent} をドメイン層と認識"
-                   + ("し、フレームワークへの依存を検出できた" if issues else "したが、試験の違反を検出できなかった"))
+        out.append(f"- {'OK' if issues else 'NG'} unit {u.get('name')}: recognized {rel.parent} as the domain layer"
+                   + (" and detected the framework dependency" if issues else ", but did not detect the probe violation"))
         lint = lint_commands(unit_dir, lang)
-        out.append(f"  - strict の停止前チェック: {' '.join(lint[0]) if lint else '対象なし（go-arch-lint の tool 登録、または vendor/bin/deptrac が無い）'}")
+        out.append(f"  - strict pre-stop check: {' '.join(lint[0]) if lint else 'none (no go-arch-lint tool registration or vendor/bin/deptrac)'}")
     rules_dir = root / ".claude" / "rules" / "arch-forge"
-    out.append(f"- {'OK' if rules_dir.is_dir() else '注意'} .claude/rules/arch-forge/ " + ("がある" if rules_dir.is_dir() else "が無い（/arch-forge:rules で導入）"))
+    out.append(f"- {'OK' if rules_dir.is_dir() else 'WARN'} .claude/rules/arch-forge/ " + ("exists" if rules_dir.is_dir() else "does not exist (install with /arch-forge:rules)"))
     print("\n".join(out))
 
 
@@ -626,9 +627,9 @@ def main() -> int:
     data = read_input()
     try:
         COMMANDS[sys.argv[1]](data)
-    except Exception as e:  # hook の不具合でセッションを止めない
+    except Exception as e:  # never stop the session because of a hook bug
         if sys.argv[1] == "doctor":
-            print(f"NG arch-forge hooks doctor が失敗した: {e!r}")
+            print(f"NG arch-forge hooks doctor failed: {e!r}")
         elif os.environ.get("ARCH_FORGE_HOOK_DEBUG"):
             print(f"arch-forge hook error: {e!r}", file=sys.stderr)
     return 0

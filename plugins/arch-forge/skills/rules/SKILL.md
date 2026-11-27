@@ -1,6 +1,6 @@
 ---
 name: rules
-description: 確定済みの docs/architecture/decision.json をもとに、プロジェクトの .claude/rules/arch-forge/（共通・言語別・ユニット別の依存ルール）と、ルートの AGENTS.md / CLAUDE.md の arch-forge 節を導入・再生成する。scaffold 後に decision.json を変えたとき、既存プロジェクトに規約だけ入れたいときに使う。 Installs or regenerates .claude/rules/arch-forge/ (common, per-language and per-unit dependency rules) and the arch-forge section of AGENTS.md / CLAUDE.md from a confirmed decision.json.
+description: From a confirmed docs/architecture/decision.json, installs or regenerates the project's .claude/rules/arch-forge/ (common, per-language and per-unit dependency rules) and the arch-forge section of the root AGENTS.md / CLAUDE.md. Use when decision.json changed after scaffolding, or to add only the conventions to an existing project.
 argument-hint: "[--dry-run]"
 disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(ls *), Bash(mkdir *), Bash(git status *)
@@ -8,30 +8,30 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash(ls *), Bash(mkdir *), Bash(gi
 
 # arch-forge: rules
 
-引数: $ARGUMENTS（`--dry-run` なら書き込まず、作成・更新するファイルの一覧だけを示す）
+Arguments: $ARGUMENTS (with `--dry-run`, write nothing and only show the list of files to create or update)
 
-## 現在の状態（自動取得）
+## Current state (collected automatically)
 
-- decision.json: !`ls docs/architecture/decision.json 2>/dev/null || echo "(なし)"`
-- 既存の rules: !`ls -R .claude/rules/arch-forge 2>/dev/null | head -30 || echo "(なし)"`
-- ルートの AGENTS.md / CLAUDE.md: !`ls AGENTS.md CLAUDE.md 2>/dev/null || echo "(なし)"`
+- decision.json: !`ls docs/architecture/decision.json 2>/dev/null || echo "(none)"`
+- Existing rules: !`ls -R .claude/rules/arch-forge 2>/dev/null | head -30 || echo "(none)"`
+- Root AGENTS.md / CLAUDE.md: !`ls AGENTS.md CLAUDE.md 2>/dev/null || echo "(none)"`
 
-## 手順
+## Procedure
 
-1. decision.json が無ければ「先に `/arch-forge:design` でアーキテクチャを確定してください」と伝えて終了する
-2. decision.json を Read し、`units[].language` の集合と各ユニットの `path` / `pattern` / `modules` を確認する
-   - `path` が絶対パス、または `..` を含む場合は処理せず、ユーザーに報告する
-3. **共通・言語別ルールのコピー**（ディレクトリごと。平坦化しない）: `${CLAUDE_PLUGIN_ROOT}/rules/common/*.md` と、使う言語ごとの `${CLAUDE_PLUGIN_ROOT}/rules/<language>/*.md` を Glob で列挙し、**Read してから同じ相対パスで Write する**（`.claude/rules/arch-forge/common/…`、`.claude/rules/arch-forge/<language>/…`）。Bash の `cp` はプロジェクトの外を読むため Claude Code に拒否されることがある。`.claude/` への書き込みは承認を求められることがあると、先にユーザーに伝える
-   既存ファイルがユーザーによって編集されている場合（プラグイン版と内容が異なる場合）は上書きせず、差分の要点を示して確認する。`<!-- arch-forge:translated -->` が入ったファイルは翻訳版なので、文字列ではなく意味で比較し、ユーザーの追記がある場合だけ確認する
+1. If decision.json does not exist, say "Confirm the architecture with `/arch-forge:design` first" and stop
+2. Read decision.json and check the set of `units[].language` and each unit's `path` / `pattern` / `modules`
+   - If a `path` is absolute or contains `..`, do not process it; report it to the user
+3. **Copy the common and per-language rules** (as whole directories; do not flatten): list `${CLAUDE_PLUGIN_ROOT}/rules/common/*.md` and `${CLAUDE_PLUGIN_ROOT}/rules/<language>/*.md` for each language used with Glob, and **Read each one, then Write it at the same relative path** (`.claude/rules/arch-forge/common/…`, `.claude/rules/arch-forge/<language>/…`). Claude Code may reject Bash `cp` because it reads outside the project. Tell the user in advance that writing to `.claude/` may ask for approval
+   If an existing file was edited by the user (its content differs from the plugin's version), do not overwrite it; show the gist of the difference and confirm. A file containing `<!-- arch-forge:translated -->` is a translation, so compare by meaning rather than text, and confirm only if the user added something
 
-   **言語を合わせる**: decision.json / ADR の言語が日本語以外なら、コピーした rules の各ファイルと CLAUDE.md をその言語に翻訳する。`paths:` frontmatter・パス・コマンド・コード片は変えず、frontmatter の直後に `<!-- arch-forge:translated -->` を入れる
-4. **ユニット別ルールの生成**: `${CLAUDE_PLUGIN_ROOT}/templates/unit-rule.md` を雛形に、ユニットごとに `.claude/rules/arch-forge/units/<unit>.md` を書く
-   - 層のディレクトリは **Glob で実在を確認したものだけ** を書く（雛形のパスを推測で埋めない）
-   - 「機能を追加するとき」はサンプル機能（`sampleFeature`）の実際のファイルを例にする
-   - 検証コマンドはユニットの Makefile / composer.json / Cargo.toml に実在するものだけを書く
+   **Match the language**: if the language of decision.json / the ADRs is not English, translate each copied rules file and CLAUDE.md into that language. Do not change the `paths:` frontmatter, paths, commands or code snippets, and put `<!-- arch-forge:translated -->` right after the frontmatter
+4. **Generate the per-unit rules**: using `${CLAUDE_PLUGIN_ROOT}/templates/unit-rule.md` as the template, write `.claude/rules/arch-forge/units/<unit>.md` for each unit
+   - Write **only layer directories confirmed to exist with Glob** (do not fill in the template's paths by guessing)
+   - For "Adding a feature", use the actual files of the sample feature (`sampleFeature`) as the example
+   - Write only verification commands that exist in the unit's Makefile / composer.json / Cargo.toml
 5. **AGENTS.md / CLAUDE.md**:
-   - AGENTS.md が無い → `${CLAUDE_PLUGIN_ROOT}/templates/AGENTS.md` を雛形に作る
-   - AGENTS.md がある → 末尾の `## Architecture (arch-forge)` 節だけを追加・更新する（他の節は触らない）
-   - CLAUDE.md が無い → `${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.md` をコピーする（日本語以外のプロジェクトでは手順 3 と同じく翻訳する）
-   - CLAUDE.md があり `@AGENTS.md` を含まない → 先頭に `@AGENTS.md` を 1 行追加してよいかユーザーに確認する
-6. 作成・更新したファイルの一覧を報告する。次のセッションから rules が読み込まれること、hooks が decision.json を前提に動くことを伝える
+   - No AGENTS.md → create one from `${CLAUDE_PLUGIN_ROOT}/templates/AGENTS.md`
+   - AGENTS.md exists → add or update only the `## Architecture (arch-forge)` section at the end (do not touch other sections)
+   - No CLAUDE.md → copy `${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.md` (for non-English projects, translate it as in step 3)
+   - CLAUDE.md exists without `@AGENTS.md` → ask the user whether to add one `@AGENTS.md` line at the top
+6. Report the list of files created and updated. Explain that the rules load from the next session, and that the hooks work on the basis of decision.json

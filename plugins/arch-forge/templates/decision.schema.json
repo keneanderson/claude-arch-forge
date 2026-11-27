@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/keneanderson/claude-arch-forge/templates/decision.schema.json",
   "title": "arch-forge decision",
-  "description": "ユーザーが確定したアーキテクチャ。docs/architecture/decision.json に保存され、scaffold ワークフローの入力になる。",
+  "description": "The architecture confirmed by the user. Saved to docs/architecture/decision.json and used as the input of the scaffold workflow.",
   "type": "object",
   "required": [
     "version",
@@ -33,11 +33,11 @@
         },
         "goModulePath": {
           "type": "string",
-          "description": "Go の module path（例: github.com/acme/shop）"
+          "description": "The Go module path (e.g. github.com/acme/shop)"
         },
         "phpNamespace": {
           "type": "string",
-          "description": "PHP のルート名前空間（例: Acme\\Shop）"
+          "description": "The PHP root namespace (e.g. Acme\\Shop)"
         }
       }
     },
@@ -64,12 +64,12 @@
     },
     "adr": {
       "type": "string",
-      "description": "確定 ADR のパス"
+      "description": "Path of the confirmed ADR"
     },
     "units": {
       "type": "array",
       "minItems": 1,
-      "description": "デプロイ単位（独立して起動・デプロイされるプロセス）。モノリスでは通常 1 つ、マイクロサービスではサービスごとに 1 つ。API と worker のように同じビルド単位（go.mod / composer.json / Cargo workspace）を共有する複数のデプロイ単位は、同じ path を持つユニットとして並べ、entrypoint で区別する",
+      "description": "Deployment units (processes started and deployed independently). Usually one in a monolith, one per service in microservices. Several deployment units sharing one build unit (go.mod / composer.json / Cargo workspace), such as an API and a worker, are listed as units with the same path and told apart by entrypoint",
       "items": {
         "type": "object",
         "required": [
@@ -117,7 +117,7 @@
               "by-feature",
               "hybrid"
             ],
-            "description": "パッケージの分け方。by-layer = 層を最上位に置き中を機能で分ける、by-feature = 機能（モジュール）を最上位に置き中を層で分ける、hybrid = 機能ごとに分け、共通の横断的関心事だけ層で置く。判断基準は architecture-patterns の patterns.md"
+            "description": "How packages are split. by-layer = layers at the top level, split by feature inside; by-feature = features (modules) at the top level, split by layer inside; hybrid = split by feature, with only shared cross-cutting concerns placed by layer. The criteria are in patterns.md of architecture-patterns"
           },
           "cqrs": {
             "type": "boolean",
@@ -125,11 +125,11 @@
           },
           "framework": {
             "type": "string",
-            "description": "主フレームワーク。例: net/http, chi, echo, gin, laravel, symfony, slim, axum, actix-web"
+            "description": "The main framework. e.g. net/http, chi, echo, gin, laravel, symfony, slim, axum, actix-web"
           },
           "libraries": {
             "type": "object",
-            "description": "役割ごとの主要ライブラリ（skills/architecture-patterns/references/frameworks.md で選定）。キーの例: http, rpc, db, migration, messaging, test",
+            "description": "Major libraries per role (chosen with skills/architecture-patterns/references/frameworks.md). Example keys: http, rpc, db, migration, messaging, test",
             "propertyNames": {
               "pattern": "^[a-z][a-z0-9-]*$"
             },
@@ -139,11 +139,11 @@
           },
           "path": {
             "type": "string",
-            "description": "リポジトリルートからの相対パス。単一構成なら '.'"
+            "description": "Path relative to the repository root. '.' for a single-unit layout"
           },
           "entrypoint": {
             "type": "string",
-            "description": "このユニットの起動点（path からの相対パス）。例: Go は cmd/api、PHP は bin/worker や public/index.php、Rust は crates/api。同じ path を共有するユニットでは必須で、互いに異なる値にする"
+            "description": "This unit's entrypoint (relative to path). e.g. cmd/api for Go, bin/worker or public/index.php for PHP, crates/api for Rust. Required for units sharing the same path, and must differ between them"
           },
           "responsibilities": {
             "type": "array",
@@ -153,7 +153,7 @@
           },
           "dataStore": {
             "type": "string",
-            "description": "例: postgres, mysql, redis, none"
+            "description": "e.g. postgres, mysql, redis, none"
           },
           "exposes": {
             "type": "array",
@@ -173,11 +173,11 @@
             "items": {
               "type": "string"
             },
-            "description": "購読するイベント / 呼び出す他ユニット"
+            "description": "Events subscribed to / other units called"
           },
           "modules": {
             "type": "array",
-            "description": "モジュラーモノリス時のモジュール（境界づけられたコンテキスト）",
+            "description": "Modules in a modular monolith (bounded contexts)",
             "items": {
               "type": "object",
               "required": [
@@ -208,31 +208,31 @@
                 "cqrs": {
                   "type": "boolean",
                   "default": false,
-                  "description": "このモジュールだけ CQRS（コマンドとクエリのモデル分離）を使う"
+                  "description": "Use CQRS (separate command and query models) only in this module"
                 }
               }
             }
           },
           "sampleFeature": {
             "type": "object",
-            "description": "全レイヤーを貫通するサンプル実装",
+            "description": "A sample implementation that goes through every layer",
             "properties": {
               "aggregate": {
                 "type": "string",
-                "description": "例: Order"
+                "description": "e.g. Order"
               },
               "useCases": {
                 "type": "array",
                 "items": {
                   "type": "string"
                 },
-                "description": "例: [\"CreateOrder\", \"GetOrder\"]"
+                "description": "e.g. [\"CreateOrder\", \"GetOrder\"]"
               }
             }
           },
           "platform": {
             "type": "object",
-            "description": "横断的な共通パッケージ（同じ path を共有するユニット間でも 1 つ）。ドメインのコードは置かない",
+            "description": "A shared cross-cutting package (one even across units sharing the same path). No domain code",
             "required": [
               "path",
               "allow"
@@ -240,14 +240,14 @@
             "properties": {
               "path": {
                 "type": "string",
-                "description": "path からの相対パス。例: internal/platform"
+                "description": "Path relative to path. e.g. internal/platform"
               },
               "allow": {
                 "type": "array",
                 "items": {
                   "type": "string"
                 },
-                "description": "置いてよいものの許可リスト。例: [\"db-pool\", \"logger\", \"http-server\", \"middleware\", \"otel\"]"
+                "description": "Allowlist of what may go there. e.g. [\"db-pool\", \"logger\", \"http-server\", \"middleware\", \"otel\"]"
               }
             }
           }
@@ -267,14 +267,14 @@
         },
         "messaging": {
           "type": "string",
-          "description": "例: none, nats, kafka, rabbitmq, sqs, pubsub"
+          "description": "e.g. none, nats, kafka, rabbitmq, sqs, pubsub"
         },
         "observability": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "例: [\"structured-logging\", \"opentelemetry\"]"
+          "description": "e.g. [\"structured-logging\", \"opentelemetry\"]"
         },
         "auth": {
           "type": "string"
@@ -283,7 +283,7 @@
     },
     "conventions": {
       "type": "array",
-      "description": "ADR で決めた実装規約（スキーマの他の項目で表せないもの）。scaffolder と適合チェックが参照する",
+      "description": "Implementation conventions decided in the ADR (those the other schema fields cannot express). Referred to by the scaffolders and the conformance check",
       "items": {
         "type": "object",
         "required": [
@@ -294,11 +294,11 @@
           "id": {
             "type": "string",
             "pattern": "^C[0-9]+$",
-            "description": "例: C1"
+            "description": "e.g. C1"
           },
           "rule": {
             "type": "string",
-            "description": "規約の本文（1 文）"
+            "description": "The convention text (one sentence)"
           },
           "check": {
             "enum": [
@@ -307,7 +307,7 @@
               "test",
               "review"
             ],
-            "description": "機械的に検査する方法。review は人・critic の目視"
+            "description": "How it is checked mechanically. review means a human or the critic reads it"
           }
         }
       }
@@ -329,17 +329,17 @@
         "archLint": {
           "type": "boolean",
           "default": true,
-          "description": "依存方向ルールを機械的に検査する設定を生成する"
+          "description": "Generate settings that check the dependency-direction rules mechanically"
         },
         "claudeSettings": {
           "type": "boolean",
           "default": false,
-          "description": "Claude Code のプロジェクト設定 .claude/settings.json（ビルド・テスト・lint コマンドの権限 allowlist と .env の読み取り禁止）を生成する"
+          "description": "Generate the Claude Code project settings .claude/settings.json (a permission allowlist for build, test and lint commands, and a read ban on .env)"
         },
         "codegen": {
           "type": "boolean",
           "default": true,
-          "description": "sqlc / oapi-codegen / buf などのコード生成ツールを実行し、生成物を配線まで行う"
+          "description": "Run code generators such as sqlc / oapi-codegen / buf and wire in the generated code"
         }
       }
     }

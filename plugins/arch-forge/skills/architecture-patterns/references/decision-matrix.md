@@ -1,67 +1,67 @@
-# 意思決定マトリクス（要件 → 規模クラス → トポロジー → 内部パターン）
+# Decision matrix (requirements → scale class → topology → internal pattern)
 
-## Step 1. 規模クラスの判定
+## Step 1. Deciding the scale class
 
-以下の指標をスコア化（各 0〜3 点）し、合計で規模クラスを決める。**不明な指標は推定値と根拠を明記**する。
+Score the following indicators (0–3 points each), and decide the scale class from the total. **For unknown indicators, state the estimate and its rationale explicitly**.
 
-| 指標 | 0 | 1 | 2 | 3 |
+| Indicator | 0 | 1 | 2 | 3 |
 |---|---|---|---|---|
-| 開発チーム数（1チーム≒3〜8人） | 1チーム未満 | 1チーム | 2〜3チーム | 4チーム以上 |
-| 境界づけられたコンテキスト候補数 | 1 | 2〜3 | 4〜6 | 7以上 |
-| ピーク RPS | <50 | 50〜500 | 500〜5,000 | >5,000 |
-| コンポーネントごとの負荷差 | 均一 | やや差 | 一部が10倍以上 | 桁違いのホットスポット |
-| 独立デプロイの必要性 | 不要 | 月次で十分 | 週次・チームごと | 日次・チームごと必須 |
-| 可用性要件 / 障害分離 | 99%で可 | 99.5% | 99.9%、一部機能の停止は許容 | 99.95%以上、障害を局所化必須 |
-| 技術スタック異質性 | 単一言語 | 単一言語＋スクリプト | 一部別言語が合理的 | 複数言語が必須 |
+| Number of development teams (1 team ≈ 3–8 people) | less than 1 team | 1 team | 2–3 teams | 4 or more teams |
+| Number of candidate bounded contexts | 1 | 2–3 | 4–6 | 7 or more |
+| Peak RPS | <50 | 50–500 | 500–5,000 | >5,000 |
+| Load differences between components | uniform | some differences | some parts 10× or more | hotspots orders of magnitude apart |
+| Need for independent deployment | none | monthly is enough | weekly, per team | daily, required per team |
+| Availability / fault isolation | 99% is fine | 99.5% | 99.9%, partial feature outages acceptable | 99.95% or more, faults must be localized |
+| Technology stack heterogeneity | single language | single language + scripts | another language is reasonable for some parts | multiple languages required |
 
-| 合計 | 規模クラス | 推奨トポロジー |
+| Total | Scale class | Recommended topology |
 |---|---|---|
-| 0〜5 | **S** | モノリス |
-| 6〜10 | **M** | モジュラーモノリス（将来分割可能な境界を先に引く） |
-| 11〜15 | **L** | モジュラーモノリス ＋ 必要な部分だけサービス切り出し（ストラングラー） |
-| 16〜21 | **XL** | マイクロサービス |
+| 0–5 | **S** | Monolith |
+| 6–10 | **M** | Modular monolith (draw boundaries that can be split later up front) |
+| 11–15 | **L** | Modular monolith + extracting services only where needed (strangler) |
+| 16–21 | **XL** | Microservices |
 
-### 重要な補正ルール
+### Important adjustment rules
 
-- **チーム数が 1 以下なら、合計点に関わらずマイクロサービスを第一推奨にしない**（運用負荷がチームの能力を超える）。代替として「モジュラーモノリス＋負荷の高い1コンポーネントのみ分離」を提示する
-- **新規プロダクトでドメイン理解が浅い段階**は境界を誤りやすい → 1 クラス下げて提案し、分割の判断基準（トリガー）を ADR に書く
-- **独立スケールが必要な部分が 1〜2 箇所だけ**なら、全体をマイクロサービスにせず、その部分だけ別サービス / ワーカーにする
-- 規制・コンプライアンスでデータ分離が必須な場合は、その境界だけは最初から分離する
+- **With 1 team or fewer, never make microservices the first recommendation, whatever the total** (the operational load exceeds the team's capacity). As an alternative, present "a modular monolith + separating only the one high-load component"
+- **A new product at a stage of shallow domain understanding** is prone to wrong boundaries → propose one class lower, and write the criteria (triggers) for splitting in the ADR
+- **If only 1–2 parts need independent scaling**, do not make everything microservices; make only those parts separate services / workers
+- If regulations or compliance require data separation, separate only that boundary from the start
 
-## Step 2. トポロジー別の付随決定
+## Step 2. Decisions that come with each topology
 
-| 決定事項 | モノリス | モジュラーモノリス | マイクロサービス |
+| Decision | Monolith | Modular monolith | Microservices |
 |---|---|---|---|
-| リポジトリ | 単一 | 単一 | モノレポ推奨（S〜L経験のチーム）/ ポリレポ |
-| DB | 単一 | 単一DB・スキーマ分離 | サービスごとに所有（共有DB禁止） |
-| モジュール間通信 | 関数呼び出し | 公開インターフェース / インプロセスイベント | 同期: gRPC/HTTP、非同期: メッセージブローカー |
-| トランザクション | ローカル | ローカル（モジュール跨ぎは最小化） | Saga（オーケストレーション or コレオグラフィー）+ Outbox |
-| 可観測性 | 構造化ログ | 構造化ログ＋メトリクス | 分散トレーシング必須（OpenTelemetry） |
-| 認証 | アプリ内 | アプリ内 | API Gateway / BFF で集約 |
+| Repository | single | single | monorepo recommended (teams with S–L experience) / polyrepo |
+| DB | single | single DB, separate schemas | owned per service (no shared DB) |
+| Communication between modules | function calls | public interfaces / in-process events | sync: gRPC/HTTP, async: message broker |
+| Transactions | local | local (minimize cross-module) | Saga (orchestration or choreography) + Outbox |
+| Observability | structured logging | structured logging + metrics | distributed tracing required (OpenTelemetry) |
+| Authentication | in the app | in the app | consolidated in an API Gateway / BFF |
 
-## Step 3. 言語の適性
+## Step 3. Language fit
 
-| 観点 | Go | PHP | Rust |
+| Aspect | Go | PHP | Rust |
 |---|---|---|---|
-| 得意領域 | API サーバー、マイクロサービス、CLI、並行処理 | Web アプリ・管理画面・CMS、高速な機能開発 | 低レイテンシ・高スループット、メモリ安全が必須、組込み・WASM |
-| 開発速度 | 速い | 最速（フレームワーク資産） | 遅め（学習曲線が急） |
-| 実行性能 | 高 | 中（OPcache/FrankenPHP/Swoole で改善） | 最高 |
-| 採用容易性（日本） | 高 | 非常に高 | 低〜中 |
-| アーキテクチャ強制 | `internal/` + lint | deptrac | crate 分割でコンパイラが強制 |
-| 推奨 FW/ライブラリ | net/http(1.22+), chi, echo, connect-go, sqlc, pgx | Laravel, Symfony, Slim | axum, tokio, sqlx, tonic |
+| Strengths | API servers, microservices, CLIs, concurrency | web apps, admin consoles, CMSs, fast feature development | low latency and high throughput, required memory safety, embedded, WASM |
+| Development speed | fast | fastest (framework ecosystem) | slower (steep learning curve) |
+| Runtime performance | high | medium (improved with OPcache/FrankenPHP/Swoole) | highest |
+| Ease of hiring | high | very high | low to medium |
+| Enforcing the architecture | `internal/` + lint | deptrac | the compiler enforces it through crate splitting |
+| Recommended frameworks/libraries | net/http (1.22+), chi, echo, connect-go, sqlc, pgx | Laravel, Symfony, Slim | axum, tokio, sqlx, tonic |
 
-言語が「未定」の場合: 要件（性能・チームスキル・納期・エコシステム）から 1 つ推奨し、次点との比較を示す。
-マイクロサービスの場合はサービスごとに言語を変えてもよいが、**原則は単一言語**とし、例外には理由を書く。
+If the language is "undecided": recommend one from the requirements (performance, team skills, deadline, ecosystem) and show the comparison with the runner-up.
+With microservices you may use different languages per service, but **use a single language as a rule**, and write the reason for any exception.
 
-フレームワーク・主要ライブラリは [frameworks.md](frameworks.md) の手順と評価軸で選ぶ（上表の「推奨 FW/ライブラリ」は出発点）。
+Choose frameworks and major libraries with the procedure and evaluation axes in [frameworks.md](frameworks.md) (the "Recommended frameworks/libraries" in the table above is a starting point).
 
-## Step 4. 内部パターンの決定
+## Step 4. Deciding the internal pattern
 
-`patterns.md` の早見表を使う。モジュラーモノリス / マイクロサービスでは **モジュール（サービス）ごとに複雑度に応じて内部パターンを変えてよい**
-（例: 注文コンテキストは DDD + Clean、通知コンテキストはシンプル・レイヤード）。
+Use the quick reference in `patterns.md`. In a modular monolith / microservices, **the internal pattern may differ per module (service) according to its complexity**
+(e.g. DDD + Clean for the ordering context, simple layered for the notification context).
 
-## Step 5. 提案の出し方
+## Step 5. How to present the proposal
 
-- 候補は **2〜3 案**。必ず「推奨案」と「よりシンプルな案」を含める
-- 各案に: 概要図（Mermaid）、トレードオフ表、想定コスト（学習・運用）、却下理由になりうる点、将来の進化パス
-- 品質特性（性能・可用性・変更容易性・テスト容易性・セキュリティ・運用性・コスト）ごとに ◎○△× で評価
+- **2–3 options**. Always include "the recommended option" and "a simpler option"
+- For each option: an overview diagram (Mermaid), a trade-off table, expected costs (learning, operations), points that could be reasons for rejection, the future evolution path
+- Rate each quality attribute (performance, availability, modifiability, testability, security, operability, cost) with ◎○△×

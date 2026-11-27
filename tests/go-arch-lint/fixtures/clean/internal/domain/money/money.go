@@ -1,4 +1,4 @@
 package money
 
-// Yen は同じ層のサブパッケージ（同じコンポーネント内の import を検査するため）。
+// Yen lives in a subpackage of the same layer (to check imports within one component).
 type Yen int64

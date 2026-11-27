@@ -1,2 +1,2 @@
-// Package ordering は他モジュールに公開する API だけを置く。
+// Package ordering holds only the API exposed to other modules.
 package ordering

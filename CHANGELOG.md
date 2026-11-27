@@ -1,99 +1,107 @@
 # Changelog
 
+## [0.4.1] - 2026-11-27
+
+### Changed
+
+- **English only**: the README, contributor docs (AGENTS.md / CLAUDE.md), skills, agents, rules, templates, workflow prompts, hook messages, scripts and tests are now in English. `README.en.md` was merged into `README.md`. Generated projects still follow the user's language; rules and CLAUDE.md are translated when copied into a non-English project
+- The hook's accepted-ADR detection still matches Japanese status words, so ADRs already written in Japanese stay protected (covered by a test)
+- validate: the check for English descriptions and the README.md / README.en.md sync check were replaced by an "English only" check (fails on CJK text outside that regex) and a check that README.md lists every user-invoked command
+
 ## [0.4.0] - 2026-11-23
 
-実際にアプリケーションを構築した試用で見つかった課題 18 件への対応。
+Addresses 18 issues found in a trial that built a real application.
 
-### 追加
+### Added
 
-- **ツールチェーンの検出** `scripts/detect-toolchains.sh`: PATH に加え goenv / asdf / mise / `~/sdk` / `/usr/local/go` / Homebrew から Go・PHP・Rust の実体を探し、`GOTOOLCHAIN` と go.mod の go / toolchain 行も表示する。PATH の go がシム（版未設定）で失敗しても実体を使う。Docker Compose・golangci-lint（ビルドに使われた Go の版）・go-arch-lint などの補助ツールの版も表示する。`--env` で PATH を、`--go-bin` で go の実体を出す
-  - design / scaffold スキルの冒頭でこの結果を表示し、生成前に「なし」の言語があればユーザーに確認する。見つけた PATH を `toolchainPath` で scaffold ワークフローとサブエージェントに渡す
-- **ライブラリの事実確認** エージェント `stack-researcher`（sonnet）と propose ワークフローの Facts フェーズ: 案を並列に設計する前に、最新版・既知の脆弱性を含まない下限（OSV）・保守状況を一次情報（proxy.golang.org / packagist / crates.io、OSV、GitHub Releases）だけで 1 回確認し `02b-stack-facts.md` に書く。各案・レビューはこの表を引用する
-- **追加ヒアリング**: requirements-analyst が、答えで案の前提が変わる影響「高」の未知の項目を `blockingQuestions` として返す。propose ワークフローは `status: needs-input` で止まり、design スキルが質問して brief に追記し、`clarified: true` で再実行する（Step 3b）
-- **改訂レビュー**: Step 4 の「調整したい」で改訂したら、architecture-critic の revision モードで差分だけをレビューする（Step 4b）
-- **比較用の案（comparison-only）**: 規模 L 未満で推奨がマイクロサービスでなければ option-c を比較用にする。critic は verdict を `reference` にし、critical / major に数えない。改訂対象にもしない
-- **検証済みの go-arch-lint テンプレート** `templates/go/go-arch-lint.{clean,modular-monolith}.yml` と、fixture で「誤検知なし・違反を検出」を確かめるテスト `tests/go-arch-lint/run.sh`（validate と CI で実行）。deepScan は注入を受ける usecase 系のコンポーネントだけ off にする
-- **hooks の動作確認** `arch_hooks.py doctor`: decision.json の読み込み、注入される文脈、ドメイン層の認識と違反の検出、strict の停止前チェックの対象を表示する。design / scaffold の完了報告の前に実行する
-- decision.json: `units[].entrypoint`（ビルド単位を共有するユニットの起動点）、`units[].packaging`（by-layer / by-feature / hybrid）、`units[].platform`（共通パッケージの許可リスト）、`modules[].cqrs`、ルートの `conventions`（実装規約 C1〜）、`scaffold.claudeSettings`、`scaffold.codegen`
-- 生成オプションに「Claude Code の設定」（`.claude/settings.json` に開発コマンドの権限 allowlist と `.env` の読み取り禁止）
-- architecture-patterns: 「パッケージの分け方（層ごと / 機能ごと / hybrid）」の判断基準。提案書・案・ADR に必ず節を置く
+- **Toolchain detection** `scripts/detect-toolchains.sh`: besides PATH, looks for the real Go, PHP and Rust binaries in goenv / asdf / mise / `~/sdk` / `/usr/local/go` / Homebrew, and also shows `GOTOOLCHAIN` and the go / toolchain lines in go.mod. Uses the real binary even when go on PATH fails through a shim (no version set). Also shows the versions of auxiliary tools such as Docker Compose, golangci-lint (the Go version it was built with) and go-arch-lint. `--env` prints PATH and `--go-bin` prints the real go
+  - The design / scaffold skills show this result at the start, and ask the user before generating if a language is "not found". The PATH found is passed to the scaffold workflow and subagents as `toolchainPath`
+- **Library fact check**: the `stack-researcher` agent (sonnet) and the Facts phase of the propose workflow. Before designing options in parallel, it checks the latest version, the minimum version without known vulnerabilities (OSV) and the maintenance status once, using only primary sources (proxy.golang.org / packagist / crates.io, OSV, GitHub Releases), and writes `02b-stack-facts.md`. Every option and the review cite this table
+- **Follow-up interview**: requirements-analyst returns high-impact unknowns whose answers change the options' premises as `blockingQuestions`. The propose workflow stops with `status: needs-input`, the design skill asks the questions, appends them to the brief, and re-runs with `clarified: true` (Step 3b)
+- **Revision review**: when "I want adjustments" in Step 4 leads to a revision, architecture-critic's revision mode reviews only the diff (Step 4b)
+- **Comparison-only options**: below scale L, unless microservices are recommended, option-c becomes comparison-only. The critic sets its verdict to `reference` and does not count it as critical / major. It is not revised either
+- **Verified go-arch-lint templates** `templates/go/go-arch-lint.{clean,modular-monolith}.yml`, and the test `tests/go-arch-lint/run.sh` that confirms "no false positives, violations detected" against fixtures (run in validate and CI). deepScan is turned off only for the usecase-like components that receive injection
+- **Hook self-check** `arch_hooks.py doctor`: shows decision.json loading, the injected context, recognition of the domain layer and detection of violations, and the targets of the strict pre-stop check. Run before the design / scaffold completion reports
+- decision.json: `units[].entrypoint` (the entrypoint of units sharing a build unit), `units[].packaging` (by-layer / by-feature / hybrid), `units[].platform` (allowlist of shared packages), `modules[].cqrs`, root `conventions` (implementation conventions C1…), `scaffold.claudeSettings`, `scaffold.codegen`
+- A "Claude Code settings" generation option (a permission allowlist for development commands and a read ban on `.env` in `.claude/settings.json`)
+- architecture-patterns: criteria for "how to split packages (by layer / by feature / hybrid)". The proposal, options and ADR always have a section on it
 
-### 変更
+### Changed
 
-- **共有ビルド単位**: 同じ `path` のユニット（API と worker など）を scaffold ワークフローが 1 つのビルド単位として扱う。1 番目が共通部分と自分の起動点、2 番目以降が自分の起動点だけを作り、検証と修正はまとめて 1 回。共有するユニットには異なる `entrypoint` を必須にし、言語の混在を拒否する
-- **安全な既定値**: `APP_ENV` の未設定・未知の値は production として扱い、インメモリ実装・暗号化なし接続・簡易モードは `APP_ENV=local` / `test` のときだけ有効にする（scaffolder 3 種、Go の config サンプル、rules、critic の観点）
-- **コード生成**: Go の scaffolder は `libraries` の sqlc / oapi-codegen / buf などを `go get -tool` で固定し、`make gen` を実行して配線まで行う。設計で下限を決めたライブラリは実際に使う
-- **検査を緩めない**: 修正の段で、テスト・lint 設定・依存方向の設定・バージョン下限の検査を緩めて通すことを禁止し、必要なら unresolved に書いてユーザーに回す（workflow、scaffolder、verification スキル、rules）
-- Go: go.mod の `toolchain` 行に最新パッチ版を書く。golangci-lint と govulncheck も `go tool` で固定して実行する
-- ヒアリング: 品質特性は「最も重視する 1 つ」と「2 番目」を別々に聞く（multiSelect をやめた）
-- 文書の長さの上限: 案 350 行（比較用は 150 行）、レビュー 250 行、提案書 250 行。詳細は `03-options/<案ID>/` の付録へ。solution-architect に Edit を追加し、改訂は該当節だけを直す
-- proposal-writer: ADR のパスを `adr/0001-application-architecture.md` に固定。sampleFeature の名前は設計文書に出てくるものだけを使う
-- foundation-builder: 手元の Docker Compose の版で `docker compose config` が通るようにする。共有ビルド単位は go.work / members に 1 回だけ書く
-- Agent フォールバック: Agent が非同期で返る前提の進め方（依存しない段は 1 メッセージでまとめて起動し、通知を待ってから次へ）を design / scaffold スキルに書いた
-- 全エージェントに「最終応答・文書はユーザーの言語で書く」を明記
-- hooks: SessionStart に起動点・パッケージの分け方・共有ビルド単位・実装規約を含める。PostToolUse は起動点の下のファイルをそのユニットとして判定する。Stop は共有ビルド単位を 1 回だけ検査する
-- スキルの `allowed-tools` を推奨のスペース区切り形式（`Bash(ls *)`）に変更
+- **Shared build units**: the scaffold workflow treats units with the same `path` (such as an API and a worker) as one build unit. The first builds the shared parts and its own entrypoint, later ones only their own entrypoint, and verification and fixes run once for all of them. Units that share one must have distinct `entrypoint`s, and mixing languages is rejected
+- **Safe defaults**: an unset or unknown `APP_ENV` is treated as production, and in-memory implementations, unencrypted connections and simplified modes are enabled only with `APP_ENV=local` / `test` (the three scaffolders, the Go config sample, rules, the critic's checks)
+- **Code generation**: the Go scaffolder pins sqlc / oapi-codegen / buf and the like from `libraries` with `go get -tool`, runs `make gen` and wires them in. Libraries whose minimum version was decided in the design are actually used
+- **Never weaken checks**: in the fix stages, passing by weakening tests, lint settings, dependency-direction settings or the minimum-version checks is forbidden; if needed it goes into unresolved for the user (workflow, scaffolders, verification skill, rules)
+- Go: the `toolchain` line in go.mod gets the latest patch version. golangci-lint and govulncheck are also pinned and run with `go tool`
+- Interview: quality attributes are asked as "the most important one" and "the second" separately (multiSelect was dropped)
+- Document length limits: options 350 lines (comparison-only 150), review 250 lines, proposal 250 lines. Details go into appendices under `03-options/<option ID>/`. solution-architect gained Edit, and revisions fix only the relevant sections
+- proposal-writer: the ADR path is fixed to `adr/0001-application-architecture.md`. sampleFeature names use only names that appear in the design documents
+- foundation-builder: makes `docker compose config` pass with the local Docker Compose version. A shared build unit is listed only once in go.work / members
+- Agent fallback: the design / scaffold skills describe how to proceed assuming Agent returns asynchronously (launch independent stages together in one message, then wait for the notifications before moving on)
+- Every agent now states "write the final response and documents in the user's language"
+- hooks: SessionStart includes the entrypoints, package splitting, shared build units and implementation conventions. PostToolUse assigns files under an entrypoint to that unit. Stop checks a shared build unit only once
+- Skill `allowed-tools` now use the recommended space-separated form (`Bash(ls *)`)
 
-### 修正（v0.4.0 の通し実行で見つかったもの）
+### Fixed (found in a full v0.4.0 run)
 
-求人検索 API（前回の試用と同じ要件）で design → 確定 → scaffold を通しで実行し、次を直した。
+A job search API (the same requirements as the previous trial) was run end to end through design → confirmation → scaffold, and the following were fixed.
 
-- **PATH の書き換えをやめ、版のファイルで直す**: `export PATH=...`・`PATH=... go`・絶対パスの go は Claude Code で毎回承認の対象になる（go-arch-lint も PATH の go を呼ぶ）。detect-toolchains.sh が goenv / asdf のシムの直し方（`.go-version` / `.tool-versions`）を示し、`--pin` で書く内容を出す。design / scaffold は確認のうえこのファイルを置き、`toolchainPath` は最後の手段にした
-- **プラグインのファイルを Bash で読まない**: プロジェクトの外を `cat` / `cp` / `cd` で触ると拒否されるため、rules のコピーを Read → Write に変えた（foundation-builder、/arch-forge:rules）。Bash は単純なコマンドを 1 つずつ実行する指示を verification-before-completion に追加
-- **go-arch-lint テンプレート**: 各コンポーネントが自分自身を `mayDependOn` に含めていなかったため、同じ層のサブパッケージ間の import と外部テストパッケージ（`package xxx_test`）を違反と誤判定していた。fixture にこの 2 つを追加。go-architecture スキルの「`_test.go` は go-arch-lint の対象外」という誤った記述を直した
-- go-scaffolder: 本番と同じ配線を通す起動経路のテストを起動点ごとに 1 本書く（別のルーターでハンドラだけを試して、WebSocket のアップグレードが壊れる不具合を見逃したため）
-- design: 実装規約の ID は decision.json を正にする
-- scaffold スキル: 版のファイルを書くため allowed-tools に Write を追加
+- **Fix with a version file instead of rewriting PATH**: `export PATH=...`, `PATH=... go` and go by absolute path all require approval every time in Claude Code (go-arch-lint also calls go on PATH). detect-toolchains.sh shows how to fix goenv / asdf shims (`.go-version` / `.tool-versions`), and `--pin` prints what to write. design / scaffold place this file after confirming, and `toolchainPath` became the last resort
+- **Do not read plugin files with Bash**: touching paths outside the project with `cat` / `cp` / `cd` is rejected, so copying the rules was changed to Read → Write (foundation-builder, /arch-forge:rules). Added an instruction to verification-before-completion to run simple Bash commands one at a time
+- **go-arch-lint templates**: components did not include themselves in `mayDependOn`, so imports between subpackages of the same layer and external test packages (`package xxx_test`) were wrongly reported as violations. Added both to the fixtures. Fixed the wrong statement in the go-architecture skill that "`_test.go` is not checked by go-arch-lint"
+- go-scaffolder: writes one startup-path test per entrypoint that goes through the same wiring as production (testing only the handlers with a separate router missed a bug that broke the WebSocket upgrade)
+- design: decision.json is the source of truth for implementation convention IDs
+- scaffold skill: added Write to allowed-tools to write the version file
 
 ## [0.3.0] - 2026-11-22
 
-### 追加
+### Added
 
-- **フレームワーク・主要ライブラリの選定**
-  - `skills/architecture-patterns/references/frameworks.md`: 選定手順、評価軸（要件適合・アーキテクチャ適合・チーム適合・保守状況・性能・ロックイン・生成サポート）、Go / PHP / Rust の役割別カタログ（HTTP / RPC / DB / マイグレーション / メッセージング / テスト）と生成サポート（◎○×）
-  - solution-architect が役割ごとに候補を比較し、採用・次点・却下理由・保守状況の出典を案に書く
-  - design: ヒアリングで技術スタックの希望・制約を聞く。確定時にフレームワークを変えられる。確定後は Step 0b で新しい ADR によりフレームワークだけを見直せる
-  - decision.json に `units[].libraries`（役割 → ライブラリ）を追加
-  - ADR テンプレートに「フレームワーク・主要ライブラリ」節
-  - 言語スキルに「フレームワーク別の差分」（Go: net/http / chi / echo / gin、Rust: axum / actix-web）
-- **英語の説明**
-  - `README.en.md`（README.md と同内容）。プラグイン側 README を日英併記に
-  - 全エージェント・スキルの description に英語の説明。plugin.json / marketplace.json の description と hook_profile の説明を日英併記に
-  - 日本語以外のプロジェクトでは、生成時に rules と CLAUDE.md をそのプロジェクトの言語に翻訳する
-- validate: description の英語、README.md と README.en.md のコマンドの同期を検査
+- **Framework and major library selection**
+  - `skills/architecture-patterns/references/frameworks.md`: the selection procedure, evaluation axes (requirements fit, architecture fit, team fit, maintenance status, performance, lock-in, generation support), a per-role catalog for Go / PHP / Rust (HTTP / RPC / DB / migrations / messaging / testing) and generation support (◎○×)
+  - solution-architect compares candidates per role and writes the choice, the runner-up, the reasons for rejection and the sources for maintenance status in each option
+  - design: the interview asks for technology stack preferences and constraints. The framework can be changed at confirmation. After confirmation, Step 0b can revisit only the frameworks with a new ADR
+  - Added `units[].libraries` (role → library) to decision.json
+  - A "Frameworks and major libraries" section in the ADR template
+  - "Framework-specific differences" in the language skills (Go: net/http / chi / echo / gin, Rust: axum / actix-web)
+- **English descriptions**
+  - `README.en.md` (same content as README.md). The plugin README became bilingual
+  - English text in every agent and skill description. The plugin.json / marketplace.json descriptions and the hook_profile description became bilingual
+  - For non-Japanese projects, rules and CLAUDE.md are translated into the project's language at generation time
+- validate: checks for English in descriptions and for the commands in README.md and README.en.md being in sync
 
-### 変更
+### Changed
 
-- propose ワークフロー: 案の `framework` を必須にし、結果に案ごとの `stacks`（ユニット・FW・ライブラリ）を含める
-- architecture-critic: 技術選定（パターンとの相性、保守状況の出典、次点の有無、サービス間のばらつき、生成サポート外の採用）をレビュー観点に追加
-- scaffolder: decision.json の `framework` / `libraries` に従い、サンプルと違う FW では adapter / infrastructure だけを差し替える
-- hooks: SessionStart の文脈にユニットの framework / libraries を含める。ドメイン層の禁止依存に fiber、bun、rocket、poem、warp を追加
+- propose workflow: `framework` is required in each option, and the result includes each option's `stacks` (unit, framework, libraries)
+- architecture-critic: technology choices (fit with the pattern, sources for maintenance status, whether there is a runner-up, variation between services, adoption outside generation support) were added to the review points
+- scaffolders: follow `framework` / `libraries` in decision.json, and with a framework different from the sample, replace only adapter / infrastructure
+- hooks: the SessionStart context includes each unit's framework / libraries. Added fiber, bun, rocket, poem and warp to the domain layer's forbidden dependencies
 
 ## [0.2.0] - 2026-11-22
 
-スター数の多い Claude Code プラグイン（obra/superpowers、affaan-m/ECC、anthropics/claude-plugins-official、wshobson/agents）の構成を参考にしたリファクタリング。
+A refactoring based on the structure of popular Claude Code plugins (obra/superpowers, affaan-m/ECC, anthropics/claude-plugins-official, wshobson/agents).
 
-### 追加
+### Added
 
-- **hooks**（`hooks/hooks.json`、bash + python3 標準ライブラリのみ）
-  - SessionStart: decision.json があれば確定アーキテクチャの要約を文脈に注入。設計途中なら `/arch-forge:design` での再開を案内
-  - PreToolUse: 承認済み ADR の書き換えに確認を求める（strict では拒否。「置き換え済み」への変更は許可）。decision.json の変更時に ADR 追加と再検査を促す
-  - PostToolUse: 編集した Go / PHP / Rust ファイルと Cargo.toml の依存方向（domain のフレームワーク依存、内側から外側への参照、モジュール内部への参照）を即時チェック
-  - Stop（strict のみ）: 変更のあるユニットで go-arch-lint / deptrac を実行し、失敗なら停止を差し戻す
+- **hooks** (`hooks/hooks.json`, bash + python3 standard library only)
+  - SessionStart: if decision.json exists, inject a summary of the confirmed architecture into the context. If the design is in progress, point to resuming with `/arch-forge:design`
+  - PreToolUse: ask for confirmation before rewriting an accepted ADR (denied in strict; changing it to "superseded" is allowed). Prompt for an ADR and re-checks when decision.json changes
+  - PostToolUse: immediately check the dependency direction of edited Go / PHP / Rust files and Cargo.toml (framework dependencies in domain, references from inner to outer, references into module internals)
+  - Stop (strict only): run go-arch-lint / deptrac on units with changes, and send the stop back if it fails
 - **userConfig `hook_profile`**: minimal / standard / strict / off
-- **rules**（`rules/`）: 生成プロジェクトの `.claude/rules/arch-forge/` に配置する規約。共通（依存ルール、ADR 運用、検証）と Go / PHP / Rust 別（`paths:` 指定）、ユニット別（`templates/unit-rule.md` から生成）
-- **`/arch-forge:rules`**: decision.json から rules と AGENTS.md / CLAUDE.md を導入・再生成する
-- **`arch-forge:verification-before-completion`**: 証拠なしに完了を報告しないための共通スキル。生成・検証系エージェントに preload
-- 生成プロジェクトに **AGENTS.md（正本）+ CLAUDE.md（`@AGENTS.md`）** を作る
-- リポジトリ側: `AGENTS.md` / `CLAUDE.md`、`make validate`（`scripts/validate.sh`）、hooks と workflows のテスト、GitHub Actions
+- **rules** (`rules/`): conventions placed in the generated project's `.claude/rules/arch-forge/`. Common (dependency rules, ADR practice, verification), per Go / PHP / Rust (with `paths:`), and per unit (generated from `templates/unit-rule.md`)
+- **`/arch-forge:rules`**: installs or regenerates the rules and AGENTS.md / CLAUDE.md from decision.json
+- **`arch-forge:verification-before-completion`**: a shared skill for never reporting completion without evidence. Preloaded by the generation and verification agents
+- Generated projects get **AGENTS.md (source of truth) + CLAUDE.md (`@AGENTS.md`)**
+- Repository side: `AGENTS.md` / `CLAUDE.md`, `make validate` (`scripts/validate.sh`), tests for the hooks and workflows, GitHub Actions
 
-### 変更
+### Changed
 
-- workflows: `args` を JSON 文字列でも受け付ける。ユニット名・パス・docsDir を検証し、リポジトリ外を指す値を拒否する
-- design スキル: ユーザー確定前に生成しない HARD-GATE と、危険信号の表を追加
-- foundation-builder: AGENTS.md / CLAUDE.md / rules を生成し、sync モードでユニット別 rules を作る
-- architecture-critic（conformance）: AGENTS.md と rules の記述が実態と一致するか、テストが依存ルールに従うかも検査
+- workflows: accept `args` as a JSON string too. Validate unit names, paths and docsDir, and reject values pointing outside the repository
+- design skill: added the HARD-GATE against generating before the user confirms, and a table of red flags
+- foundation-builder: generates AGENTS.md / CLAUDE.md / rules, and creates per-unit rules in sync mode
+- architecture-critic (conformance): also checks that AGENTS.md and the rules match reality, and that tests follow the dependency rules
 
 ## [0.1.0] - 2026-11-22
 
-- 初版。design / scaffold / check スキル、サブエージェント 10 個、propose / scaffold ワークフロー
+- Initial release. design / scaffold / check skills, 10 subagents, propose / scaffold workflows

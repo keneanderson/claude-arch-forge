@@ -1,69 +1,69 @@
 ---
 name: go-architecture
-description: Go でのアーキテクチャ実装規約。レイヤード / クリーン / ヘキサゴナル / DDD / モジュラーモノリス / マイクロサービスごとのディレクトリ構成、依存性逆転の書き方、DI、エラー処理、テスト、go-arch-lint による依存方向検査。Go プロジェクトの構成を決める・生成する・レビューするときに使う。 Go architecture conventions (layouts per pattern, dependency inversion, DI, errors, tests, go-arch-lint) and differences between net/http, chi, echo and gin.
+description: Architecture implementation conventions for Go. Directory layouts per pattern (layered / clean / hexagonal / DDD / modular monolith / microservices), how to write dependency inversion, DI, error handling, tests, dependency direction checks with go-arch-lint, and the differences between net/http, chi, echo and gin. Use when deciding, generating or reviewing the structure of a Go project.
 user-invocable: false
 ---
 
-# Go アーキテクチャ規約
+# Go architecture conventions
 
-詳細なディレクトリツリーは `${CLAUDE_SKILL_DIR}/references/layouts.md`、
-層ごとのサンプルコードは `${CLAUDE_SKILL_DIR}/references/samples.md` を Read して使う。
+Read and use `${CLAUDE_SKILL_DIR}/references/layouts.md` for the detailed directory trees,
+and `${CLAUDE_SKILL_DIR}/references/samples.md` for sample code per layer.
 
-## 基本方針
+## Basic policy
 
-- **Go バージョン**: 生成時に `go version` で確認し、インストール済みの最新安定版を `go.mod` の `go` ディレクティブに使う（1.22 未満なら警告。ServeMux のパターンルーティングを使うため）。`toolchain` 行には、そのマイナー版の最新パッチ版を書く（`https://go.dev/dl/?mode=json`）。`go version` が失敗したら、`bash <pluginRoot>/scripts/detect-toolchains.sh` で goenv / asdf などの実体を探す
-- **環境と設定**: `APP_ENV` が未設定・未知なら production として扱い、インメモリ実装は `APP_ENV=local` / `test` のときだけ使う（samples.md の config）
-- **パッケージの分け方**: decision.json の `packaging`。by-layer は `internal/<層>/`、by-feature は `internal/<機能>/<層>/`（モジュラーモノリスは `internal/modules/<module>/<層>/`）
-- **エントリポイント**: `cmd/<binary>/main.go`。main は配線（設定読込・DI・サーバ起動・graceful shutdown）だけを行う
-- **非公開化**: アプリ本体は `internal/` 配下に置き、外部からの import をコンパイラで禁止する
-- **インターフェースは利用側が定義する**（usecase / application 層が Repository interface を持ち、infrastructure が実装する）。小さく保つ
-- **DI**: 原則は main での手動コンストラクタ注入。依存が 30 を超えるなど配線が辛くなったら google/wire を検討（初期は入れない）
-- **context**: I/O を伴う関数の第一引数は `ctx context.Context`
-- **エラー**: ドメインエラーは `var ErrXxx = errors.New(...)` の番兵値または型で定義し、`fmt.Errorf("...: %w", err)` でラップ。HTTP ステータスへの変換はハンドラ層のみで行う
-- **ログ**: 標準 `log/slog`（JSON ハンドラ）。ロガーは依存として注入
-- **設定**: 環境変数から読む `internal/config`。外部ライブラリは必須ではない
-- **HTTP**: 既定は標準 `net/http`（`mux.HandleFunc("GET /orders/{id}", h)` + `r.PathValue("id")`）。ミドルウェアが多いなら chi、チームが慣れていれば echo
-- **gRPC / サービス間**: connect-go（HTTP/1.1 と gRPC 両対応、buf で生成）を第一候補、既存資産があれば grpc-go
-- **DB**: PostgreSQL + pgx/v5。クエリは sqlc でコード生成（`db/query/*.sql` → `internal/infrastructure/postgres/sqlc`）。マイグレーションは goose または golang-migrate
-- **テスト**: 標準 `testing` + テーブル駆動。usecase はインメモリ Repository 実装でテストする。`httptest` でハンドラをテスト
-- **Lint**: golangci-lint（`.golangci.yml`）。依存方向は go-arch-lint（`.go-arch-lint.yml`）または golangci-lint の depguard で検査
+- **Go version**: check with `go version` at generation time, and use the latest installed stable version for the `go` directive in `go.mod` (warn if below 1.22, because ServeMux pattern routing is used). In the `toolchain` line, write the latest patch version of that minor version (`https://go.dev/dl/?mode=json`). If `go version` fails, look for the real binary in goenv / asdf and the like with `bash <pluginRoot>/scripts/detect-toolchains.sh`
+- **Environment and configuration**: if `APP_ENV` is unset or unknown, treat it as production, and use in-memory implementations only with `APP_ENV=local` / `test` (the config in samples.md)
+- **Package split**: `packaging` in decision.json. by-layer is `internal/<layer>/`, by-feature is `internal/<feature>/<layer>/` (`internal/modules/<module>/<layer>/` for a modular monolith)
+- **Entrypoints**: `cmd/<binary>/main.go`. main only does wiring (loading settings, DI, starting the server, graceful shutdown)
+- **Keeping things private**: put the application itself under `internal/`, so the compiler forbids imports from outside
+- **Interfaces are defined by the consumer** (the usecase / application layer owns the Repository interface, and infrastructure implements it). Keep them small
+- **DI**: manual constructor injection in main as a rule. If wiring gets painful, for example beyond 30 dependencies, consider google/wire (not at the start)
+- **context**: functions doing I/O take `ctx context.Context` as the first parameter
+- **Errors**: define domain errors as sentinel values `var ErrXxx = errors.New(...)` or types, and wrap with `fmt.Errorf("...: %w", err)`. Convert to HTTP status only in the handler layer
+- **Logging**: the standard `log/slog` (JSON handler). Inject the logger as a dependency
+- **Configuration**: `internal/config`, read from environment variables. No external library is required
+- **HTTP**: standard `net/http` by default (`mux.HandleFunc("GET /orders/{id}", h)` + `r.PathValue("id")`). chi if there is a lot of middleware, echo if the team knows it
+- **gRPC / service-to-service**: connect-go (supports both HTTP/1.1 and gRPC, generated with buf) as the first choice, grpc-go if there are existing assets
+- **DB**: PostgreSQL + pgx/v5. Generate queries with sqlc (`db/query/*.sql` → `internal/infrastructure/postgres/sqlc`). Migrations with goose or golang-migrate
+- **Tests**: standard `testing` + table-driven. Test usecases with in-memory Repository implementations. Test handlers with `httptest`
+- **Lint**: golangci-lint (`.golangci.yml`). Check dependency direction with go-arch-lint (`.go-arch-lint.yml`) or golangci-lint's depguard
 
-## フレームワーク別の差分
+## Framework-specific differences
 
-decision.json の `framework` / `libraries` に従う。samples.md は標準 `net/http` + sqlc 版なので、他を選んだ場合は **adapter（ハンドラ・ルーター）と infrastructure だけ** を差し替え、domain / usecase は同じコードにする。選定基準は `architecture-patterns` スキルの `references/frameworks.md`。
+Follow `framework` / `libraries` in decision.json. samples.md is the standard `net/http` + sqlc version, so if something else is chosen, swap **only the adapter (handlers, router) and infrastructure**, keeping the same code for domain / usecase. The selection criteria are in `references/frameworks.md` of the `architecture-patterns` skill.
 
-| framework | ルーティング | パスパラメータ | ハンドラ層での注意 |
+| framework | Routing | Path parameters | Notes for the handler layer |
 |---|---|---|---|
 | net/http | `mux.HandleFunc("GET /orders/{id}", h)` | `r.PathValue("id")` | — |
-| chi | `r.Get("/orders/{id}", h)`、`r.Route` でグループ化 | `chi.URLParam(r, "id")` | `http.Handler` 互換なので標準ミドルウェアを使える |
-| echo | `e.GET("/orders/:id", h)`（`func(c echo.Context) error`） | `c.Param("id")` | エラーは `echo.HTTPError` に変換。`echo.Context` を usecase に渡さない |
-| gin | `r.GET("/orders/:id", h)`（`func(c *gin.Context)`） | `c.Param("id")` | `gin.Context` を usecase に渡さない。`c.Request.Context()` を渡す |
+| chi | `r.Get("/orders/{id}", h)`, group with `r.Route` | `chi.URLParam(r, "id")` | `http.Handler`-compatible, so standard middleware works |
+| echo | `e.GET("/orders/:id", h)` (`func(c echo.Context) error`) | `c.Param("id")` | convert errors to `echo.HTTPError`. Do not pass `echo.Context` to the usecase |
+| gin | `r.GET("/orders/:id", h)` (`func(c *gin.Context)`) | `c.Param("id")` | do not pass `gin.Context` to the usecase. Pass `c.Request.Context()` |
 
-DB を ent / GORM にした場合も、生成されたモデルは infrastructure に閉じ込め、Repository 実装の中でドメインの Entity に変換する。
+When the DB layer uses ent / GORM, also keep the generated models inside infrastructure, and convert to domain Entities inside the Repository implementation.
 
-## パターン → ディレクトリの対応（要約）
+## Pattern → directories (summary)
 
-| パターン | 主要ディレクトリ |
+| Pattern | Main directories |
 |---|---|
 | layered | `internal/{handler,service,repository,model}` |
 | clean | `internal/{domain,usecase,adapter/{http,repository},infrastructure}` |
 | hexagonal | `internal/{core/{domain,port,service},adapter/{inbound/http,outbound/postgres}}` |
-| ddd-clean / ddd-hexagonal | 上記の `domain` を `domain/<aggregate>/` に分け Entity / ValueObject / Repository interface / DomainEvent を置く |
+| ddd-clean / ddd-hexagonal | split `domain` above into `domain/<aggregate>/`, holding Entity / ValueObject / Repository interface / DomainEvent |
 | vertical-slice | `internal/feature/<feature>/{handler.go,command.go,query.go,store.go}` |
-| modular-monolith | `internal/modules/<module>/` ごとに上記いずれか ＋ `internal/modules/<module>/api.go`（公開ファサード）。他モジュールは facade のみ参照 |
-| microservices | `services/<svc>/`（各々独立 `go.mod`）＋ ルート `go.work`、契約は `api/proto` |
+| modular-monolith | one of the above per `internal/modules/<module>/` + `internal/modules/<module>/api.go` (the public facade). Other modules reference only the facade |
+| microservices | `services/<svc>/` (each with its own `go.mod`) + a root `go.work`, with contracts in `api/proto` |
 
-## 依存方向の検査（必須）
+## Dependency direction check (required)
 
-`.go-arch-lint.yml` を生成し、層の依存ルールを宣言する。**プラグイン同梱の検証済みテンプレート**（`<pluginRoot>/templates/go/`、layouts.md 末尾の表）を元にし、パスとコンポーネント名だけを変える。
-ツールはバージョンを固定して go.mod の tool ディレクティブ（Go 1.24+）で管理する: `go get -tool github.com/fe3dback/go-arch-lint@<最新の安定タグ>`。
-検証コマンド: `go tool go-arch-lint check`（ネットワークが無く取得できなければ import の grep で代替し、その旨を報告する）。
-外部テストパッケージ（`package usecase_test`）の `_test.go` も go-arch-lint の検査対象になる。テストでも依存ルールを守る（usecase のテストは外側の層の実装を import せず、テストファイル内のフェイクを使う）。同じ層のサブパッケージ間の import と外部テストパッケージを通すため、テンプレートでは各コンポーネントが自分自身を `mayDependOn` に含めている（消さない）。
+Generate `.go-arch-lint.yml` declaring the layer dependency rules. Start from **the verified templates bundled with the plugin** (`<pluginRoot>/templates/go/`, the table at the end of layouts.md), changing only paths and component names.
+Pin the tool version and manage it with the tool directive in go.mod (Go 1.24+): `go get -tool github.com/fe3dback/go-arch-lint@<latest stable tag>`.
+Verification command: `go tool go-arch-lint check` (if it cannot be fetched without network, substitute a grep of the imports and say so).
+`_test.go` files in external test packages (`package usecase_test`) are also checked by go-arch-lint. Tests follow the dependency rules too (usecase tests do not import outer layer implementations; they use fakes inside the test files). To allow imports between subpackages of the same layer and external test packages, every component in the templates includes itself in `mayDependOn` (do not remove it).
 
-## 生成後の必須チェック
+## Required checks after generation
 
 ```
-gofmt -l . | (! grep .)     # 未整形ファイルなし
+gofmt -l . | (! grep .)     # no unformatted files
 go vet ./...
 go build ./...
 go test ./...

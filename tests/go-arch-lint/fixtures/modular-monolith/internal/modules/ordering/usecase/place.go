@@ -6,7 +6,7 @@ import (
 	"example.com/mm/internal/modules/ordering/domain"
 )
 
-// StockChecker は ordering が必要とする在庫確認の port（利用側で定義する）。
+// StockChecker is the stock-check port ordering needs (defined on the consumer side).
 type StockChecker interface {
 	InStock(ctx context.Context, sku string) (bool, error)
 }

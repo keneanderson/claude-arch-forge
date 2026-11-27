@@ -1,6 +1,6 @@
 .PHONY: validate test test-hooks test-workflows test-go-arch-lint
 
-# 品質ゲート（push 前に実行する）
+# Quality gate (run before pushing)
 validate:
 	@bash scripts/validate.sh
 
@@ -12,6 +12,6 @@ test-hooks:
 test-workflows:
 	@node tests/workflows/run.mjs
 
-# Go が無い環境では skip する
+# Skipped where Go is not available
 test-go-arch-lint:
 	@bash tests/go-arch-lint/run.sh

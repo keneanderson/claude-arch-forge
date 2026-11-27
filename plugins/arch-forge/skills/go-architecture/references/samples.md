@@ -1,6 +1,6 @@
-# Go サンプルコード（clean アーキテクチャ、Order の例）
+# Go sample code (clean architecture, Order example)
 
-他パターンでも層の責務は同じ。パッケージ名とパスを layouts.md に合わせて読み替える。
+The layer responsibilities are the same in other patterns. Adapt the package names and paths to layouts.md.
 
 ## domain/order.go
 
@@ -22,11 +22,11 @@ type OrderID string
 type Order struct {
 	id         OrderID
 	customerID string
-	amount     int64 // 最小通貨単位
+	amount     int64 // smallest currency unit
 	createdAt  time.Time
 }
 
-// NewOrder は不変条件を検証して Order を生成する。
+// NewOrder validates the invariants and creates an Order.
 func NewOrder(id OrderID, customerID string, amount int64, now time.Time) (*Order, error) {
 	if id == "" || customerID == "" {
 		return nil, errors.Join(ErrInvalidOrder, errors.New("id and customerID are required"))
@@ -37,7 +37,7 @@ func NewOrder(id OrderID, customerID string, amount int64, now time.Time) (*Orde
 	return &Order{id: id, customerID: customerID, amount: amount, createdAt: now}, nil
 }
 
-// Reconstruct は永続化層からの復元用（検証済みデータ前提）。
+// Reconstruct is for restoring from the persistence layer (assumes validated data).
 func Reconstruct(id OrderID, customerID string, amount int64, createdAt time.Time) *Order {
 	return &Order{id: id, customerID: customerID, amount: amount, createdAt: createdAt}
 }
@@ -48,7 +48,7 @@ func (o *Order) Amount() int64        { return o.amount }
 func (o *Order) CreatedAt() time.Time { return o.createdAt }
 ```
 
-## usecase/port.go と usecase/create_order.go
+## usecase/port.go and usecase/create_order.go
 
 ```go
 package usecase
@@ -106,9 +106,9 @@ func (uc *CreateOrder) Execute(ctx context.Context, in CreateOrderInput) (OrderO
 }
 ```
 
-## usecase/create_order_test.go（テーブル駆動 + テスト内フェイク）
+## usecase/create_order_test.go (table-driven + an in-test fake)
 
-usecase のテストは adapter の実装を import しない（依存ルール違反になる）。フェイクはテストファイル内に置く。
+usecase tests do not import adapter implementations (that would violate the dependency rules). Keep fakes inside the test file.
 
 ```go
 func TestCreateOrder(t *testing.T) {
@@ -122,7 +122,7 @@ func TestCreateOrder(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := newFakeOrderRepository() // 同じテストファイル内の map ベースのフェイク
+			repo := newFakeOrderRepository() // a map-based fake in the same test file
 			uc := usecase.NewCreateOrder(repo, fixedID("o1"), fixedClock{})
 			_, err := uc.Execute(context.Background(), tt.in)
 			if !errors.Is(err, tt.wantErr) {
@@ -163,12 +163,12 @@ func (h *OrderHandler) getOrder(w nethttp.ResponseWriter, r *nethttp.Request) {
 	writeJSON(w, nethttp.StatusOK, toResponse(out))
 }
 ```
-（パッケージ名 `http` と標準ライブラリが衝突するため `nethttp "net/http"` で import する。衝突を避けたい場合はパッケージ名を `httpadapter` にする）
+(Import it as `nethttp "net/http"` because the package name `http` collides with the standard library. To avoid the collision, name the package `httpadapter`)
 
-## internal/config/config.go（設定漏れは安全側に倒す）
+## internal/config/config.go (fail safe when settings are missing)
 
 ```go
-// Env は実行環境。未設定・未知の値は Production として扱う（設定の書き忘れで本番が簡易モードにならないように）。
+// Env is the runtime environment. An unset or unknown value is treated as Production (so a forgotten setting never puts production into a simplified mode).
 type Env string
 
 const (
@@ -183,7 +183,7 @@ type Config struct {
 	DatabaseURL string
 }
 
-// IsLocal は、インメモリ実装などの簡易な動作を許してよい環境かを返す。
+// IsLocal reports whether the environment may allow simplified behavior such as in-memory implementations.
 func (c Config) IsLocal() bool { return c.Env == EnvLocal || c.Env == EnvTest }
 
 func Load() (Config, error) {
@@ -194,7 +194,7 @@ func Load() (Config, error) {
 	case EnvTest:
 		cfg.Env = EnvTest
 	}
-	// 本番相当では必須設定が無ければ起動しない
+	// in production-equivalent environments, refuse to start without the required settings
 	if !cfg.IsLocal() && cfg.DatabaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is required (set APP_ENV=local to use the in-memory store for local development)")
 	}
@@ -209,7 +209,7 @@ func getenv(key, def string) string {
 }
 ```
 
-## cmd/<app>/main.go（配線と graceful shutdown）
+## cmd/<app>/main.go (wiring and graceful shutdown)
 
 ```go
 func main() {
@@ -223,8 +223,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// DATABASE_URL があれば postgres 実装を使う。接続できなければ起動失敗にする（黙ってメモリに戻さない）。
-	// インメモリ実装は APP_ENV=local / test を明示したときだけ使い、その旨をログに出す（config.Load が本番での未設定を拒否する）。
+	// Use the postgres implementation if DATABASE_URL is set. Fail startup if it cannot connect (never silently fall back to memory).
+	// Use the in-memory implementation only when APP_ENV=local / test is set explicitly, and log that (config.Load rejects missing settings in production).
 	repo, closeDB, err := infrastructure.NewOrderRepository(ctx, cfg.DatabaseURL, cfg.IsLocal(), log)
 	if err != nil {
 		log.Error("init repository", "err", err)
@@ -256,20 +256,20 @@ func main() {
 }
 ```
 
-UUID は外部依存を避けるなら `crypto/rand` で生成した 16 バイトを hex 化した実装でよい（ネットワーク無しでもビルドできるようにする）。
+To avoid an external dependency for UUIDs, hex-encoding 16 bytes generated with `crypto/rand` is fine (so it builds without network).
 
 ## Makefile
 
 ```make
 .PHONY: run gen build test lint fmt arch-lint vuln
 run:       ; APP_ENV=local go run ./cmd/<app>
-gen:       ; go tool sqlc generate          # 生成ツールを使う場合だけ（oapi-codegen / buf も同様に go tool で）
+gen:       ; go tool sqlc generate          # only when using generators (oapi-codegen / buf likewise via go tool)
 build:     ; go build ./...
 test:      ; go test -race ./...
 fmt:       ; gofmt -w .
-lint:      ; go tool golangci-lint run      # PATH の golangci-lint は古い Go でビルドされていることがある
+lint:      ; go tool golangci-lint run      # golangci-lint on PATH may have been built with an older Go
 arch-lint: ; go tool go-arch-lint check
 vuln:      ; go tool govulncheck ./...
 ```
 
-go.mod の `toolchain` 行は、使うマイナー版の最新パッチ版にする（例: `go 1.27.0` / `toolchain go1.27.4`）。govulncheck が標準ライブラリの脆弱性を出したら、パッチ版を上げて直す。
+Set the `toolchain` line in go.mod to the latest patch version of the minor version used (e.g. `go 1.27.0` / `toolchain go1.27.4`). If govulncheck reports standard library vulnerabilities, fix them by raising the patch version.

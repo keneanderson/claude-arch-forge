@@ -1,105 +1,105 @@
-# アプリケーション内部アーキテクチャ・パターン カタログ
+# Catalog of internal application architecture patterns
 
-各パターンは「いつ選ぶか / 選ばないか / 依存方向 / 典型ディレクトリ / 主なリスク」で記述する。
-言語別の具体的なディレクトリとコードは `go-architecture` / `php-architecture` / `rust-architecture` スキルを参照。
+Each pattern is described as "when to choose it / when not to / dependency direction / typical directories / main risks".
+For concrete per-language directories and code, see the `go-architecture` / `php-architecture` / `rust-architecture` skills.
 
 ---
 
-## 1. シンプル・レイヤード（Handler → Service → Repository）
+## 1. Simple layered (Handler → Service → Repository)
 
-- **選ぶ**: CRUD 中心、ドメインロジックが薄い、少人数（1〜3人）、短納期、PoC / 社内ツール
-- **選ばない**: 業務ルールが複雑、長期運用で仕様変更が多い、複数の入出力チャネル
-- **依存方向**: `handler → service → repository → DB`（上から下へ一方向）
-- **リスク**: Service が肥大化（Fat Service）、DB スキーマにドメインが引きずられる
-- **進化パス**: Service 内のロジックが増えたら Clean / Hexagonal へ段階移行
+- **Choose**: mostly CRUD, thin domain logic, a small team (1–3 people), short deadlines, PoCs / internal tools
+- **Do not choose**: complex business rules, long-term operation with frequent spec changes, multiple input/output channels
+- **Dependency direction**: `handler → service → repository → DB` (one way, top to bottom)
+- **Risks**: the Service grows bloated (Fat Service), and the domain gets dragged along by the DB schema
+- **Evolution path**: once the logic in the Service grows, migrate step by step to Clean / Hexagonal
 
-## 2. クリーンアーキテクチャ（Entities / Use Cases / Interface Adapters / Frameworks）
+## 2. Clean Architecture (Entities / Use Cases / Interface Adapters / Frameworks)
 
-- **選ぶ**: 業務ルールが中〜高複雑度、テスト容易性重視、フレームワーク非依存にしたい、5年以上の運用
-- **選ばない**: 単純 CRUD（ボイラープレート過多）、超短納期
-- **依存方向**: 外側 → 内側のみ。`infrastructure → adapter → usecase → domain`。domain は何にも依存しない
-- **境界の作法**: usecase が Repository/Gateway の **インターフェースを所有**し、infrastructure が実装（依存性逆転）
-- **リスク**: 層ごとの DTO 変換が冗長、小規模チームでは過剰設計
+- **Choose**: moderately to highly complex business rules, testability matters, you want framework independence, 5+ years of operation
+- **Do not choose**: simple CRUD (too much boilerplate), very short deadlines
+- **Dependency direction**: outer → inner only. `infrastructure → adapter → usecase → domain`. domain depends on nothing
+- **Boundary practice**: the usecase **owns the Repository/Gateway interfaces**, and infrastructure implements them (dependency inversion)
+- **Risks**: redundant DTO conversion between layers; over-engineering for small teams
 
-## 3. ヘキサゴナル（Ports & Adapters）
+## 3. Hexagonal (Ports & Adapters)
 
-- **選ぶ**: 入出力チャネルが多い（HTTP + gRPC + キュー + CLI）、外部連携の差し替えが多い、テストで外部をスタブしたい
-- **依存方向**: `adapters(in/out) → ports → application core`。core は port（interface/trait）のみ知る
-- **Clean との違い**: 層の数ではなく「内側（core）/ 外側（adapter）」の二分と port の明示が主眼。実務ではほぼ同義に扱ってよいが、ディレクトリを `ports/` `adapters/inbound` `adapters/outbound` で切るのが特徴
-- **リスク**: port の粒度設計を誤るとインターフェースが爆発する
+- **Choose**: many input/output channels (HTTP + gRPC + queues + CLI), frequent swapping of external integrations, you want to stub externals in tests
+- **Dependency direction**: `adapters (in/out) → ports → application core`. The core knows only the ports (interfaces/traits)
+- **Difference from Clean**: the focus is not the number of layers but the split into inside (core) / outside (adapters) and explicit ports. In practice they can be treated as nearly the same, but splitting directories into `ports/`, `adapters/inbound` and `adapters/outbound` is characteristic
+- **Risks**: getting the port granularity wrong makes the number of interfaces explode
 
-## 4. DDD（戦術的設計）＋ 上記いずれか
+## 4. DDD (tactical design) + one of the above
 
-- **選ぶ**: ドメインが複雑で、ドメインエキスパートとの対話が必要、ユビキタス言語を育てたい
-- **要素**: Entity / Value Object / Aggregate / Domain Service / Domain Event / Repository / Factory
-- **組み合わせ**: 「DDD + Clean」「DDD + Hexagonal」が定番。DDD 単体はディレクトリ構造ではない
-- **リスク**: 学習コスト、Aggregate 境界の誤りによるトランザクション問題
+- **Choose**: the domain is complex, dialogue with domain experts is needed, you want to grow a ubiquitous language
+- **Elements**: Entity / Value Object / Aggregate / Domain Service / Domain Event / Repository / Factory
+- **Combinations**: "DDD + Clean" and "DDD + Hexagonal" are the standard ones. DDD alone is not a directory structure
+- **Risks**: learning cost, transaction problems from wrong Aggregate boundaries
 
-## 5. モジュラーモノリス
+## 5. Modular monolith
 
-- **選ぶ**: 将来のマイクロサービス化を視野に入れつつ今は 1 デプロイ単位にしたい、2〜4 チーム、境界づけられたコンテキストが複数見えている
-- **構造**: `modules/<context>/` ごとに内部を Clean/Hexagonal で構成。モジュール間は **公開 API（facade / interface）またはイベント経由のみ**。他モジュールの内部パッケージを直接 import しない
-- **データ**: 1 DB でもスキーマ（またはテーブル接頭辞）をモジュールごとに分離し、他モジュールのテーブルを JOIN しない
-- **強制手段**: Go=`internal/` + go-arch-lint / depguard、PHP=deptrac、Rust=workspace crate 分割（コンパイラが強制）
-- **リスク**: 境界の規律が崩れると「分散していないだけのスパゲッティ」になる
+- **Choose**: you want one deployment unit now while keeping a future move to microservices in view, 2–4 teams, several bounded contexts are visible
+- **Structure**: each `modules/<context>/` is structured internally with Clean/Hexagonal. Modules talk **only through public APIs (facades / interfaces) or events**. Never import another module's internal packages directly
+- **Data**: even with one DB, separate schemas (or table prefixes) per module, and do not JOIN other modules' tables
+- **Enforcement**: Go = `internal/` + go-arch-lint / depguard, PHP = deptrac, Rust = workspace crate splitting (enforced by the compiler)
+- **Risks**: if boundary discipline breaks down, it becomes "spaghetti that just isn't distributed"
 
-## 6. バーティカルスライス
+## 6. Vertical slice
 
-- **選ぶ**: 機能単位で独立性が高い、機能ごとにチームが担当、ユースケースごとに実装の複雑度が大きく異なる
-- **構造**: `features/<feature>/{handler,command,query,repository}` のように機能で縦に切る
-- **リスク**: 共通ロジックの重複、横断的ルールの散逸
+- **Choose**: features are highly independent, teams own features, implementation complexity varies greatly between use cases
+- **Structure**: slice vertically by feature, as in `features/<feature>/{handler,command,query,repository}`
+- **Risks**: duplicated shared logic, cross-cutting rules scattered around
 
 ## 7. CQRS
 
-- **選ぶ**: 読み取りと書き込みで負荷・モデルが大きく異なる（参照 100:1 等）、複雑な検索画面、読み取り専用レプリカ活用
-- **段階**: ①コード上でコマンド/クエリのハンドラを分離（軽量 CQRS）→ ②読み取りモデル/DBを分離 → ③イベントで同期
-- **リスク**: ②以降は結果整合性の扱いが必須になる。①で十分なことが多い
+- **Choose**: reads and writes differ greatly in load and model (e.g. 100:1 reads), complex search screens, using read-only replicas
+- **Stages**: ① separate the command/query handlers in code (lightweight CQRS) → ② separate the read model/DB → ③ sync through events
+- **Risks**: from ② on, handling eventual consistency becomes mandatory. ① is often enough
 
-## 8. イベントソーシング
+## 8. Event sourcing
 
-- **選ぶ**: 監査証跡が法的要件、状態の時系列再現が必要（金融・在庫・予約）
-- **選ばない**: 上記要件がない場合はほぼ常に選ばない（複雑度が非常に高い）
-- **組み合わせ**: CQRS とセットが前提
+- **Choose**: an audit trail is a legal requirement, or replaying state over time is needed (finance, inventory, reservations)
+- **Do not choose**: without those requirements, almost never (the complexity is very high)
+- **Combinations**: assumes it goes together with CQRS
 
-## 9. イベント駆動（非同期メッセージング）
+## 9. Event-driven (asynchronous messaging)
 
-- **選ぶ**: 処理の疎結合、スパイク吸収、長時間処理、複数サービスへのファンアウト
-- **要素**: Outbox パターン（DB 更新とイベント発行の原子性）、冪等コンシューマ、DLQ
-- **リスク**: デバッグ・トレースが難しい。分散トレーシング（OpenTelemetry）を最初から入れる
+- **Choose**: decoupling processing, absorbing spikes, long-running processing, fan-out to several services
+- **Elements**: the Outbox pattern (atomic DB updates and event publishing), idempotent consumers, DLQs
+- **Risks**: debugging and tracing are hard. Add distributed tracing (OpenTelemetry) from the start
 
-## 10. サーバーレス / FaaS
+## 10. Serverless / FaaS
 
-- **選ぶ**: トラフィックが間欠的、運用人員がほぼゼロ、イベントトリガー中心
-- **注意**: 内部構造は Hexagonal にしておくとランタイム（Lambda / Cloud Run functions）を差し替えやすい
-- **言語相性**: Go・Rust はコールドスタートが速く好相性。PHP は Bref（Lambda）等で可能
+- **Choose**: intermittent traffic, almost no operations staff, mostly event-triggered
+- **Note**: keeping the internal structure hexagonal makes it easy to swap the runtime (Lambda / Cloud Run functions)
+- **Language fit**: Go and Rust have fast cold starts and fit well. PHP is possible with Bref (Lambda) and the like
 
 ---
 
-## 11. パッケージの分け方（層ごと / 機能ごと）
+## 11. How to split packages (by layer / by feature)
 
-内部パターン（1〜6）とは別の軸。**同じクリーンアーキテクチャでも、最上位を層にするか機能にするか** で見通しと変更の局所性が変わる。案ごとに必ず比較し、両方のツリー例と採用理由を書く。
+A separate axis from the internal patterns (1–6). **Even with the same Clean Architecture, whether the top level is layers or features** changes clarity and the locality of changes. Always compare them for each option, and write example trees for both and the reason for the choice.
 
-| 分け方 | ツリー（Go の例） | 向いている | 注意 |
+| Split | Tree (Go example) | Suited for | Watch out for |
 |---|---|---|---|
-| 層ごと（by-layer） | `internal/{domain,usecase,adapter,infrastructure}/<feature>.go` | 機能が少ない（〜5）、層の規約をチームに浸透させたい、CRUD 中心 | 機能を足すと全層のディレクトリに散らばる。機能単位の削除・分割がしにくい |
-| 機能ごと（by-feature） | `internal/<feature>/{domain,usecase,adapter,infrastructure}/` | 機能・コンテキストが多い、将来モジュールやサービスに切り出す、チームが機能単位で担当 | 機能をまたぐ共通コードの置き場を決める（`platform` の許可リスト）。機能間の参照ルールが要る |
-| hybrid | 機能ごとに分け、横断的関心事（DB 接続、ロガー、HTTP サーバ、ミドルウェア）だけ `internal/platform/` に置く | モジュラーモノリスの標準形 | `platform` にドメインを置かない。許可リストを decision.json の `platform.allow` に書く |
+| By layer (by-layer) | `internal/{domain,usecase,adapter,infrastructure}/<feature>.go` | few features (up to ~5), wanting the team to absorb the layer conventions, mostly CRUD | adding a feature scatters it across every layer directory; deleting or splitting by feature is hard |
+| By feature (by-feature) | `internal/<feature>/{domain,usecase,adapter,infrastructure}/` | many features/contexts, extracting modules or services later, teams owning features | decide where code shared across features goes (the `platform` allowlist); rules for references between features are needed |
+| hybrid | split by feature, with only cross-cutting concerns (DB connections, logger, HTTP server, middleware) in `internal/platform/` | the standard form of a modular monolith | never put domain code in `platform`. Write the allowlist in `platform.allow` in decision.json |
 
-- **組み合わせの目安**: layered + by-layer は自然。モジュラーモノリスは by-feature（= モジュール）か hybrid。バーティカルスライスは定義上 by-feature
-- **ビルド単位とデプロイ単位**: API と worker のように 1 つの go.mod（composer.json / Cargo workspace）から複数の起動点（`cmd/api`、`cmd/worker`）を作る構成は、共通パッケージ（`platform`、`config`）の範囲と、起動点ごとに配線するモジュールを明記する
-- 選んだ分け方は decision.json の `packaging`（by-layer / by-feature / hybrid）に書く
+- **Typical combinations**: layered + by-layer is natural. A modular monolith is by-feature (= modules) or hybrid. A vertical slice is by-feature by definition
+- **Build units and deployment units**: for a layout that builds several entrypoints (`cmd/api`, `cmd/worker`) from one go.mod (composer.json / Cargo workspace), such as an API and a worker, state the scope of the shared packages (`platform`, `config`) and which modules each entrypoint wires
+- Write the chosen split in `packaging` in decision.json (by-layer / by-feature / hybrid)
 
 ---
 
-## パターン選択の早見表
+## Pattern quick reference
 
-| 状況 | 推奨内部パターン |
+| Situation | Recommended internal pattern |
 |---|---|
-| CRUD中心・小規模・短納期 | シンプル・レイヤード |
-| 業務ルール中程度・長期運用 | クリーン or ヘキサゴナル |
-| 入出力チャネル多数 | ヘキサゴナル |
-| ドメイン複雑・専門家あり | DDD + クリーン/ヘキサゴナル |
-| 複数コンテキスト・将来分割 | モジュラーモノリス（各モジュール内はクリーン） |
-| 機能ごとの独立性が高い | バーティカルスライス |
-| 読み書き非対称 | 上記 + 軽量 CQRS |
-| 監査・時系列再現が必須 | CQRS + イベントソーシング |
+| Mostly CRUD, small, short deadline | Simple layered |
+| Moderate business rules, long-term operation | Clean or Hexagonal |
+| Many input/output channels | Hexagonal |
+| Complex domain, experts available | DDD + Clean/Hexagonal |
+| Several contexts, splitting later | Modular monolith (Clean inside each module) |
+| Highly independent features | Vertical slice |
+| Asymmetric reads and writes | The above + lightweight CQRS |
+| Audit or replay over time required | CQRS + event sourcing |

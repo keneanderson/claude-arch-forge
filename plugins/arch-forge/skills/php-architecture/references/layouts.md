@@ -1,46 +1,46 @@
-# PHP ディレクトリ構成リファレンス
+# PHP directory layout reference
 
-`<Root>` は decision.json の `project.phpNamespace`（例: `Acme\Shop`）。サンプル機能は Order。
+`<Root>` is `project.phpNamespace` in decision.json (e.g. `Acme\Shop`). The sample feature is Order.
 
-## layered（Laravel 標準）
+## layered (standard Laravel)
 
 ```
 app/
 ├── Http/
 │   ├── Controllers/OrderController.php
-│   └── Requests/StoreOrderRequest.php     # バリデーション
-├── Services/OrderService.php              # 業務処理
+│   └── Requests/StoreOrderRequest.php     # validation
+├── Services/OrderService.php              # business logic
 ├── Repositories/
 │   ├── OrderRepositoryInterface.php
 │   └── EloquentOrderRepository.php
 ├── Models/Order.php                       # Eloquent
-└── Providers/AppServiceProvider.php       # interface → 実装 bind
+└── Providers/AppServiceProvider.php       # binds interface → implementation
 routes/api.php
 database/migrations/xxxx_create_orders_table.php
 tests/Feature/OrderApiTest.php
 tests/Unit/OrderServiceTest.php
 ```
 
-## clean（Laravel + src/ 分離）
+## clean (Laravel + a separate src/)
 
 ```
-app/                                   # Presentation & フレームワーク層
-├── Http/Controllers/Order/CreateOrderController.php   # シングルアクション
+app/                                   # Presentation & framework layer
+├── Http/Controllers/Order/CreateOrderController.php   # single action
 ├── Http/Requests/CreateOrderRequest.php
 └── Providers/OrderingServiceProvider.php
 src/
 └── Ordering/
     ├── Domain/
-    │   ├── Order.php                  # Entity（final, 不変条件）
-    │   ├── OrderId.php                # Value Object（readonly）
+    │   ├── Order.php                  # Entity (final, invariants)
+    │   ├── OrderId.php                # Value Object (readonly)
     │   ├── Money.php
     │   ├── OrderRepository.php        # interface
     │   └── Exception/OrderNotFound.php
     ├── Application/
     │   ├── CreateOrder/
-    │   │   ├── CreateOrderCommand.php # 入力 DTO（readonly）
-    │   │   ├── CreateOrderHandler.php # ユースケース
-    │   │   └── OrderView.php          # 出力 DTO
+    │   │   ├── CreateOrderCommand.php # input DTO (readonly)
+    │   │   ├── CreateOrderHandler.php # use case
+    │   │   └── OrderView.php          # output DTO
     │   └── GetOrder/GetOrderHandler.php
     └── Infrastructure/
         ├── Persistence/
@@ -59,7 +59,7 @@ phpstan.neon
 "autoload": { "psr-4": { "App\\": "app/", "Acme\\Shop\\": "src/" } }
 ```
 
-## hexagonal（Symfony 推奨）
+## hexagonal (Symfony recommended)
 
 ```
 src/
@@ -69,7 +69,7 @@ src/
     │   ├── Port/
     │   │   ├── In/CreateOrderUseCase.php      # interface
     │   │   └── Out/{OrderRepository.php,EventPublisher.php}
-    │   └── Service/CreateOrderService.php     # In port 実装
+    │   └── Service/CreateOrderService.php     # implements the In port
     └── Adapter/
         ├── In/Http/CreateOrderController.php  # #[Route('/orders', methods: ['POST'])]
         ├── In/Console/...
@@ -77,10 +77,10 @@ src/
             ├── Persistence/DoctrineOrderRepository.php
             ├── Persistence/InMemoryOrderRepository.php
             └── Messaging/MessengerEventPublisher.php
-config/services.yaml   # Port/Out/* → Adapter/Out/* を bind
+config/services.yaml   # binds Port/Out/* → Adapter/Out/*
 ```
 
-## vertical-slice（Laravel）
+## vertical-slice (Laravel)
 
 ```
 app/Features/
@@ -92,29 +92,29 @@ app/Features/
 └── GetOrder/...
 ```
 
-## modular-monolith（Laravel）
+## modular-monolith (Laravel)
 
 ```
 modules/
 ├── Ordering/
-│   ├── Contracts/OrderingApi.php          # 他モジュールに公開する唯一の interface
+│   ├── Contracts/OrderingApi.php          # the only interface exposed to other modules
 │   ├── Domain/ Application/ Infrastructure/
 │   ├── Http/routes.php
-│   └── OrderingServiceProvider.php        # routes, bindings, migrations を登録
+│   └── OrderingServiceProvider.php        # registers routes, bindings, migrations
 └── Inventory/
     ├── Contracts/InventoryApi.php
     └── ...
 database/migrations/ordering/ , database/migrations/inventory/
 ```
-`composer.json` の PSR-4 に `"Modules\\": "modules/"` を追加し、`bootstrap/providers.php` に各 ServiceProvider を登録。
-モジュール間連携は `Contracts/*` の interface 注入か Laravel Events（`ShouldQueue` で非同期化可能）。
+Add `"Modules\\": "modules/"` to the PSR-4 section of `composer.json`, and register each ServiceProvider in `bootstrap/providers.php`.
+Modules integrate by injecting the `Contracts/*` interfaces or through Laravel Events (can be made async with `ShouldQueue`).
 
-## microservices（Slim）
+## microservices (Slim)
 
 ```
 services/
 ├── ordering/
-│   ├── public/index.php        # Slim App, PHP-DI コンテナ
+│   ├── public/index.php        # Slim App, PHP-DI container
 │   ├── config/{container.php,routes.php}
 │   ├── src/{Domain,Application,Infrastructure,Presentation}/
 │   ├── tests/
@@ -125,7 +125,7 @@ api/openapi/*.yaml
 deploy/docker-compose.yml
 ```
 
-## deptrac.yaml（clean の例）
+## deptrac.yaml (clean example)
 
 ```yaml
 deptrac:

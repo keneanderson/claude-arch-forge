@@ -11,7 +11,7 @@ import (
 
 type Module struct{ h *httpadapter.Handler }
 
-// New は他モジュールの公開 API（inventory.StockChecker）だけを受け取って配線する。
+// New wires the module, taking only other modules' public APIs (inventory.StockChecker).
 func New(stock inventory.StockChecker) *Module {
 	return &Module{h: httpadapter.NewHandler(usecase.NewPlaceOrder(stock, memory.OrderRepository{}))}
 }

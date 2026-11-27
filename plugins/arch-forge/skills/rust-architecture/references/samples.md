@@ -1,4 +1,4 @@
-# Rust サンプルコード（clean workspace、Order の例）
+# Rust sample code (clean workspace, Order example)
 
 ## crates/domain/src/order.rs
 
@@ -110,12 +110,12 @@ impl<R: OrderRepository, I: IdGenerator> CreateOrder<R, I> {
 
 #[cfg(test)]
 mod tests {
-    // インメモリ実装（Mutex<HashMap>）を使い、正常系と amount <= 0 の異常系を検証する
+    // use the in-memory implementation (Mutex<HashMap>) to check the happy path and the amount <= 0 error case
 }
 ```
-※ ユースケースに Repository を所有させる代わりに `Arc<R>` を共有してもよい。複数ユースケースで同じ Repository を使う場合は `R: Clone`（内部で `Arc`）にする。
+Note: instead of having the use case own the Repository, you may share an `Arc<R>`. When several use cases use the same Repository, make it `R: Clone` (an `Arc` inside).
 
-## crates/api/src/routes.rs（axum 0.8）
+## crates/api/src/routes.rs (axum 0.8)
 
 ```rust
 pub fn router<R: OrderRepository + Clone, I: IdGenerator + Clone>(state: Arc<AppState<R, I>>) -> Router {
@@ -156,7 +156,7 @@ impl From<CreateOrderError> for ApiError {
 }
 ```
 
-## crates/api/src/main.rs（graceful shutdown）
+## crates/api/src/main.rs (graceful shutdown)
 
 ```rust
 #[tokio::main]
@@ -172,7 +172,7 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
-## crates/api/tests/orders.rs（ルーターの結合テスト）
+## crates/api/tests/orders.rs (router integration test)
 
 ```rust
 #[tokio::test]
@@ -185,4 +185,4 @@ async fn create_then_get() {
     assert_eq!(res.status(), StatusCode::CREATED);
 }
 ```
-`tower = { version = "0.5", features = ["util"] }` と `http-body-util` を dev-dependencies に追加する。
+Add `tower = { version = "0.5", features = ["util"] }` and `http-body-util` to dev-dependencies.

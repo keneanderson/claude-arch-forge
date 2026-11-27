@@ -5,35 +5,35 @@ paths:
   - "**/deptrac.yaml"
   - "**/phpstan.neon"
 ---
-# PHP のアーキテクチャ規約
+# PHP architecture conventions
 
-> [../common/architecture.md](../common/architecture.md) を PHP に当てはめた規約です。
+> Applies [../common/architecture.md](../common/architecture.md) to PHP.
 
-## 構成
+## Structure
 
-- 全ファイルの先頭に `declare(strict_types=1);`
-- 名前空間は PSR-4。ドメインは `<RootNamespace>\<Context>\Domain\...`
-- Entity は `final class`、Value Object は `readonly` プロパティにする
-- interface → 実装のバインドは DI コンテナで行う（Laravel: ServiceProvider、Symfony: `services.yaml`、Slim: PHP-DI）
+- `declare(strict_types=1);` at the top of every file
+- Namespaces follow PSR-4. The domain is `<RootNamespace>\<Context>\Domain\...`
+- Entities are `final class`, and Value Objects use `readonly` properties
+- Bind interfaces to implementations in the DI container (Laravel: ServiceProvider, Symfony: `services.yaml`, Slim: PHP-DI)
 
-## 依存
+## Dependencies
 
-- Domain で `Illuminate\`、`Symfony\`、`Doctrine\`、`Slim\`、`Psr\Http\`、`PDO` を use しない
-- clean / DDD では Eloquent Model を Infrastructure に閉じ込め、Repository 実装で Entity と Model を変換する（layered のみ Eloquent の直接利用を許す）
-- Application は Infrastructure / Presentation（Http）を use しない。必要な機能は Application に interface を置く
-- モジュラーモノリス: 他モジュールは `Modules\<Module>\Contracts\` の interface だけを参照する
-- 依存ルールは `deptrac.yaml` に宣言する。層を増やしたら deptrac の layer と ruleset も更新する
+- Domain does not `use` `Illuminate\`, `Symfony\`, `Doctrine\`, `Slim\`, `Psr\Http\` or `PDO`
+- In clean / DDD, keep Eloquent Models inside Infrastructure, and convert between Entities and Models in the Repository implementation (only layered allows using Eloquent directly)
+- Application does not `use` Infrastructure / Presentation (Http). Put interfaces for the capabilities it needs in Application
+- Modular monolith: reference other modules only through the interfaces in `Modules\<Module>\Contracts\`
+- Declare the dependency rules in `deptrac.yaml`. When you add a layer, also update deptrac's layers and ruleset
 
-## コード
+## Code
 
-- コントローラは入力の検証と usecase の呼び出しだけを行う。業務ルールを書かない
-- 例外は Domain の例外クラスで表し、HTTP ステータスへの変換は Presentation（例外ハンドラ）だけで行う
-- 設定は `.env` / 環境変数から読む。秘密情報をコミットしない
+- Controllers only validate input and call the usecase. No business rules in them
+- Represent exceptions with Domain exception classes, and convert to HTTP status only in Presentation (the exception handler)
+- Read settings from `.env` / environment variables. Never commit secrets
 
-## 検証
+## Verification
 
 ```
 composer validate --strict && vendor/bin/phpstan analyse && vendor/bin/pest && vendor/bin/deptrac analyse
 ```
 
-vendor が無い環境でも `php -l` による構文チェックは必ず行う。
+Even without vendor, always run the syntax check with `php -l`.

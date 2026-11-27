@@ -1,69 +1,69 @@
-# サービス分割ガイド（モジュラーモノリス / マイクロサービス）
+# Service splitting guide (modular monolith / microservices)
 
-## 分割の前提チェック（すべて Yes でなければマイクロサービスは第一推奨にしない）
+## Prerequisite check for splitting (unless all are Yes, do not make microservices the first recommendation)
 
-- [ ] 各サービスを独立して所有できるチームがある（1サービス＝1チームが目安、1チームが最大3サービス程度）
-- [ ] CI/CD・コンテナ・監視（ログ集約・メトリクス・トレーシング）を運用できる
-- [ ] ドメイン境界がある程度安定している（要件が月単位で大きく変わらない）
-- [ ] 結果整合性を業務として許容できる箇所がある
-- [ ] 独立デプロイ・独立スケールによる利益が運用コストを上回る
+- [ ] There are teams that can own each service independently (roughly 1 service = 1 team, with one team owning at most about 3 services)
+- [ ] You can operate CI/CD, containers and monitoring (log aggregation, metrics, tracing)
+- [ ] The domain boundaries are reasonably stable (the requirements do not change drastically month to month)
+- [ ] There are places where the business can accept eventual consistency
+- [ ] The benefit of independent deployment and scaling outweighs the operational cost
 
-## 境界の見つけ方
+## Finding boundaries
 
-1. **イベントストーミング的アプローチ**: ユーザーストーリーからドメインイベント（「注文が確定された」）を列挙 → 時系列に並べる → 集約と境界を見つける
-2. **言語の境界**: 同じ単語が別の意味を持つ場所（「商品」がカタログでは説明文、在庫では数量）がコンテキスト境界
-3. **変更の理由**: 一緒に変更されるものは同じサービス、別の理由で変更されるものは別サービス
-4. **データの所有**: 書き込み権限を持つのは 1 サービスだけ。複数サービスが同じテーブルを更新したいなら境界が誤っている
-5. **チーム構造（逆コンウェイ）**: 望むアーキテクチャに合わせてチームを組む
+1. **An event-storming-style approach**: list domain events ("order was placed") from the user stories → arrange them in time order → find the aggregates and boundaries
+2. **Language boundaries**: places where the same word means different things ("product" is a description in the catalog but a quantity in inventory) are context boundaries
+3. **Reasons for change**: what changes together belongs in the same service; what changes for different reasons belongs in separate services
+4. **Data ownership**: only one service has write access. If several services want to update the same table, the boundary is wrong
+5. **Team structure (inverse Conway)**: organize teams to match the architecture you want
 
-## 典型的な分割例（EC の場合）
+## A typical split (e-commerce)
 
-| サービス | 責務 | データ所有 | 主な通信 |
+| Service | Responsibilities | Owned data | Main communication |
 |---|---|---|---|
-| identity | 認証・会員 | users | 同期（トークン検証は JWT でローカル） |
-| catalog | 商品情報・検索 | products | 読み取り多 → キャッシュ / 検索エンジン |
-| ordering | 注文・決済オーケストレーション | orders | Saga オーケストレーター |
-| inventory | 在庫引当 | stock | イベント購読（OrderPlaced） |
-| notification | メール・Push | なし（ログのみ） | イベント購読のみ |
+| identity | authentication, members | users | sync (tokens verified locally as JWTs) |
+| catalog | product information, search | products | read-heavy → cache / search engine |
+| ordering | orders, payment orchestration | orders | Saga orchestrator |
+| inventory | stock allocation | stock | subscribes to events (OrderPlaced) |
+| notification | email, push | none (logs only) | event subscription only |
 
-## 通信方式の選択
+## Choosing the communication style
 
-| 方式 | 使う場面 | Go | PHP | Rust |
+| Style | When to use it | Go | PHP | Rust |
 |---|---|---|---|---|
-| REST/JSON | 外部公開 API、BFF | net/http, chi | Laravel / Symfony | axum |
-| gRPC / Connect | サービス間同期、型安全な契約 | connect-go, grpc-go | spiral/roadrunner-grpc（限定的） | tonic |
-| メッセージング | 非同期・ファンアウト | NATS, Kafka (franz-go), Pub/Sub, SQS | Laravel Queue, Symfony Messenger | async-nats, rdkafka, lapin |
+| REST/JSON | public APIs, BFFs | net/http, chi | Laravel / Symfony | axum |
+| gRPC / Connect | synchronous service-to-service calls, type-safe contracts | connect-go, grpc-go | spiral/roadrunner-grpc (limited) | tonic |
+| Messaging | async, fan-out | NATS, Kafka (franz-go), Pub/Sub, SQS | Laravel Queue, Symfony Messenger | async-nats, rdkafka, lapin |
 
-- 同期呼び出しのチェーンは **最大 2 ホップ** を目安。深くなるなら非同期化かサービス統合を検討
-- 契約は `proto/` または `openapi/` に集約し、コード生成する（モノレポなら `api/` ディレクトリ）
+- Keep chains of synchronous calls to **at most 2 hops** as a guideline. If they get deeper, consider going async or merging services
+- Keep contracts in `proto/` or `openapi/` and generate code from them (in a monorepo, an `api/` directory)
 
-## データ整合性
+## Data consistency
 
-- **Outbox パターン**: 業務テーブル更新と同一トランザクションで `outbox` テーブルに書き、リレーがブローカーへ発行
-- **冪等コンシューマ**: `processed_messages(message_id)` で重複排除
-- **Saga**: 3 サービス以上の協調はオーケストレーション型（ordering がコーディネート）を推奨。補償トランザクションを設計する
+- **Outbox pattern**: write to an `outbox` table in the same transaction as the business table update, and a relay publishes to the broker
+- **Idempotent consumers**: deduplicate with `processed_messages(message_id)`
+- **Saga**: for coordination across 3 or more services, orchestration (ordering coordinates) is recommended. Design the compensating transactions
 
-## モノレポ構成（マイクロサービス時の推奨）
+## Monorepo layout (recommended for microservices)
 
 ```
 .
-├── api/                  # proto / OpenAPI 契約（単一の真実）
+├── api/                  # proto / OpenAPI contracts (the single source of truth)
 ├── services/
-│   ├── <service-a>/      # 各サービスは独立してビルド・デプロイ可能
+│   ├── <service-a>/      # each service builds and deploys independently
 │   └── <service-b>/
-├── pkg/ or libs/         # 共有ライブラリ（ロギング、トレーシング設定など横断的関心事のみ。ドメインは共有しない）
+├── pkg/ or libs/         # shared libraries (only cross-cutting concerns such as logging and tracing setup; never share the domain)
 ├── deploy/               # docker-compose, k8s manifests, terraform
-├── docs/architecture/    # ADR, C4 図
+├── docs/architecture/    # ADRs, C4 diagrams
 └── Makefile
 ```
 
-**共有ライブラリにドメインモデルを入れない**（分散モノリス化の典型原因）。
+**Never put domain models in shared libraries** (a typical cause of a distributed monolith).
 
-## 段階的移行（ストラングラーフィグ）
+## Incremental migration (strangler fig)
 
-モジュラーモノリスから始める場合、ADR に「分割トリガー」を明記する:
-- あるモジュールのデプロイ頻度が他の 3 倍以上になった
-- あるモジュールだけ負荷が 10 倍以上で、スケールアウト単位を分けたい
-- 担当チームが分かれ、リリース調整がボトルネックになった
+When starting from a modular monolith, state the "split triggers" in the ADR:
+- One module deploys 3 or more times as often as the others
+- Only one module has 10× or more load, and you want separate scale-out units
+- The owning teams split, and coordinating releases has become a bottleneck
 
-トリガー発生時、そのモジュールの公開インターフェースを gRPC/HTTP 化し、DB スキーマを物理分離して切り出す。
+When a trigger fires, turn that module's public interface into gRPC/HTTP, physically separate its DB schema, and extract it.

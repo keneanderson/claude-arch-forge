@@ -1,75 +1,74 @@
-# arch-forge — エージェント向けガイド
+# arch-forge — guide for agents
 
-Claude Code プラグイン **arch-forge** のリポジトリです。新規開発のアプリケーションアーキテクチャ（Go / PHP / Rust）を、要件ヒアリングから提案・確定・雛形生成・検証まで行います。
+This is the repository of the Claude Code plugin **arch-forge**. It takes the application architecture of a new project (Go / PHP / Rust) from the requirements interview through the proposal, confirmation, scaffolding and verification.
 
-このファイルが正本です。Claude Code は `CLAUDE.md` の `@AGENTS.md` から読み込みます。目次として使い、150 行以内に保ちます。
+This file is the source of truth. Claude Code loads it through `@AGENTS.md` in `CLAUDE.md`. Use it as a table of contents and keep it within 150 lines.
 
-## 地図
+## Map
 
-- **[README.md](README.md)** / **[README.en.md](README.en.md)** — 利用者向けの説明（日本語 / 英語。内容を揃える）
-- **`HANDOFF.md`** — 引き継ぎ（現状、未検証の部分、残作業）。ローカル専用で git には入れない（`.gitignore` 済み）。無ければ読まない
-- **[CHANGELOG.md](CHANGELOG.md)** — 版ごとの変更
-- **[plugins/arch-forge/](plugins/arch-forge/)** — プラグイン本体
+- **[README.md](README.md)** — documentation for users
+- **`HANDOFF.md`** — handover notes (current state, unverified parts, remaining work). Local only and not in git (already in `.gitignore`). Skip it if it does not exist
+- **[CHANGELOG.md](CHANGELOG.md)** — changes per version
+- **[plugins/arch-forge/](plugins/arch-forge/)** — the plugin itself
 
 ```
 plugins/arch-forge/
-├── .claude-plugin/plugin.json   # マニフェスト（userConfig: hook_profile）
-├── skills/        # /arch-forge:design | scaffold | check | rules と、知識スキル（user-invocable: false）
-├── agents/        # サブエージェント 11 個（model / effort / tools / preload skills を明示）
-├── workflows/     # propose.js / scaffold.js（Workflow ツール用スクリプト）
-├── hooks/         # hooks.json + run-hook.sh + arch_hooks.py（標準ライブラリのみ。doctor で動作確認）
-├── scripts/       # detect-toolchains.sh（Go / PHP / Rust と補助ツールの実体を探す。bash のみ）
-├── rules/         # 生成プロジェクトの .claude/rules/arch-forge/ に配置する規約テンプレート
-└── templates/     # decision.schema.json（design と scaffold の契約）、adr.md、AGENTS.md、CLAUDE.md、unit-rule.md、go/go-arch-lint.*.yml（検証済み）
+├── .claude-plugin/plugin.json   # manifest (userConfig: hook_profile)
+├── skills/        # /arch-forge:design | scaffold | check | rules, plus knowledge skills (user-invocable: false)
+├── agents/        # 11 subagents (model / effort / tools / preloaded skills stated explicitly)
+├── workflows/     # propose.js / scaffold.js (scripts for the Workflow tool)
+├── hooks/         # hooks.json + run-hook.sh + arch_hooks.py (standard library only; self-check with doctor)
+├── scripts/       # detect-toolchains.sh (finds the real Go / PHP / Rust and auxiliary tool binaries; bash only)
+├── rules/         # convention templates placed in the generated project's .claude/rules/arch-forge/
+└── templates/     # decision.schema.json (the contract between design and scaffold), adr.md, AGENTS.md, CLAUDE.md, unit-rule.md, go/go-arch-lint.*.yml (verified)
 ```
 
-## 設計の不変条件
+## Design invariants
 
-- **decision.json が唯一の契約**: design 側は decision.json を書き、scaffold 側は decision.json だけを入力にする。フィールド（`framework` / `libraries` を含む）を変えたら `templates/decision.schema.json`、design スキル、proposal-writer、scaffolder、hooks（`arch_hooks.py`）を同時に直す
-- **依存ゼロ**: hooks は bash と python3 標準ライブラリだけで動かす。python3 が無ければ何もしない。hook の失敗でユーザーのセッションを止めない（例外は握りつぶして exit 0）
-- **ユーザーが確定するまで生成しない**: design スキルの HARD-GATE を弱める変更をしない
-- **ビルド単位とデプロイ単位**: 同じ `path` の units は 1 つのビルド単位（共通部分を先に作り、順番に生成、検証は 1 回）。共有するユニットは `entrypoint` を必須にする
-- **検査を緩めて通さない**: 検証の失敗を、テスト・lint 設定・バージョン下限の検査を緩めて直す変更を、プラグインの指示に入れない
-- **Workflow スクリプトはファイルを読めない**: 必要な値は呼び出し側スキルが `args` で渡す。`args` は文字列でも受け付け、名前とパスは検証してからプロンプトに入れる
-- **プラグインのエージェントでは `hooks` / `mcpServers` / `permissionMode` が無視される**: frontmatter に書かない
+- **decision.json is the only contract**: the design side writes decision.json, and the scaffold side takes only decision.json as input. When you change a field (including `framework` / `libraries`), update `templates/decision.schema.json`, the design skill, proposal-writer, the scaffolders and the hooks (`arch_hooks.py`) together
+- **Zero dependencies**: the hooks run on bash and the python3 standard library only. Without python3 they do nothing. A hook failure never stops the user's session (exceptions are swallowed and the hook exits 0)
+- **Generate nothing until the user confirms**: do not make changes that weaken the design skill's HARD-GATE
+- **Build units and deployment units**: units with the same `path` form one build unit (shared parts are built first, units are generated in order, and verification runs once). Units that share one must have an `entrypoint`
+- **Never pass by weakening checks**: do not put into the plugin's instructions any change that fixes a verification failure by weakening tests, lint settings or the minimum-version checks
+- **Workflow scripts cannot read files**: the calling skill passes the values they need in `args`. `args` is also accepted as a string, and names and paths are validated before going into prompts
+- **`hooks` / `mcpServers` / `permissionMode` are ignored for plugin agents**: do not put them in frontmatter
 
-## 書き方の規約
+## Writing conventions
 
-| 対象 | 規約 |
+| Target | Convention |
 |---|---|
-| エージェント | frontmatter に `name` / `description` / `model` / `effort` / `tools` を必ず書く。tools は最小権限。生成・検証系は `arch-forge:verification-before-completion` を preload する |
-| スキル | `description` に「いつ使うか」を書く。ユーザーが明示的に呼ぶものは `disable-model-invocation: true`、知識スキルは `user-invocable: false` |
-| ワークフロー | 各 `agent()` に `agentType` / `model` / `effort` / `label`、結果を使うものは `schema` を付ける。null（失敗・スキップ）を必ず扱う |
-| rules | 1 ファイル 80 行以内。言語別は `paths:` frontmatter を付け、`../common/` を参照する |
-| 言語 | ドキュメント・プロンプトは日本語。生成物はユーザーの言語（decision.json / ADR の言語）に合わせる。日本語以外のプロジェクトでは rules / CLAUDE.md をコピー時に翻訳する |
-| 英語の説明 | エージェント・スキルの `description` は日本語の後に英語の 1〜2 文を続ける（英語では `: ` を使わない）。README.md を変えたら README.en.md も同じ内容に直す。plugin.json / marketplace.json の description は「英語 / 日本語」 |
-| フレームワーク | 候補・評価軸・生成サポート（◎○×）は `skills/architecture-patterns/references/frameworks.md` が正本。候補を増やしたら言語スキルの「フレームワーク別の差分」と README 2 つの対応表も直す。版数や日付はカタログに書かない（stack-researcher が設計時に一次情報で確認する） |
-| 依存方向 lint の設定 | go-arch-lint の設定は `templates/go/` の検証済みテンプレートが正本。変えたら `tests/go-arch-lint/` の fixture で確認する |
-| ファイル名 | 小文字ハイフン区切り（`go-scaffolder.md`） |
+| Agents | Always set `name` / `description` / `model` / `effort` / `tools` in frontmatter. Tools follow least privilege. Generation and verification agents preload `arch-forge:verification-before-completion` |
+| Skills | Write "when to use it" in `description`. Skills the user calls explicitly get `disable-model-invocation: true`; knowledge skills get `user-invocable: false` |
+| Workflows | Give each `agent()` an `agentType` / `model` / `effort` / `label`, plus a `schema` when the result is used. Always handle null (failure or skip) |
+| rules | At most 80 lines per file. Language-specific rules get `paths:` frontmatter and reference `../common/` |
+| Language | Everything in this repository (docs, prompts, descriptions, messages, comments) is in English; `make validate` fails on CJK text. The only exception is the hook's ADR status regex, which also matches Japanese status words. Generated files follow the user's language (the language of decision.json / the ADRs). For non-English projects, rules / CLAUDE.md are translated when copied |
+| Frameworks | `skills/architecture-patterns/references/frameworks.md` is the source of truth for candidates, evaluation axes and generation support (◎○×). When you add a candidate, also update "Framework-specific differences" in the language skill and the table in README.md. Do not put version numbers or dates in the catalog (stack-researcher checks them from primary sources at design time) |
+| Dependency-direction lint settings | The verified templates in `templates/go/` are the source of truth for go-arch-lint settings. After changing them, check against the fixtures in `tests/go-arch-lint/` |
+| File names | Lowercase, hyphen-separated (`go-scaffolder.md`) |
 
-## 品質ゲート（push 前に必ず実行）
+## Quality gate (always run before pushing)
 
 ```bash
-make validate        # JSON / 版数 / frontmatter / 英語の description / README 同期 / rules / workflow 構文とモック実行 / hooks テスト / ツールチェーン検出 / go-arch-lint テンプレート / claude plugin validate
-make test            # hooks・workflows・go-arch-lint テンプレートのテストだけ
+make validate        # JSON / versions / frontmatter / English only / README commands / rules / workflow syntax and mocked run / hook tests / toolchain detection / go-arch-lint templates / claude plugin validate
+make test            # only the hook, workflow and go-arch-lint template tests
 ```
 
-- 版を上げるときは `plugin.json` と `marketplace.json` の `version` を揃え、`CHANGELOG.md` に節を追加する
-- workflow の分岐やスキーマを変えたら `tests/workflows/run.mjs` にケースを足す
-- hook の判定を変えたら `tests/hooks/test_hooks.py` にケースを足す
+- When bumping the version, keep `version` in `plugin.json` and `marketplace.json` in sync, and add a section to `CHANGELOG.md`
+- When you change a workflow branch or schema, add a case to `tests/workflows/run.mjs`
+- When you change a hook's logic, add a case to `tests/hooks/test_hooks.py`
 
-## 手動での動作確認
+## Manual checks
 
 ```bash
-claude --plugin-dir ./plugins/arch-forge          # 対話で /arch-forge:design を試す
+claude --plugin-dir ./plugins/arch-forge          # try /arch-forge:design interactively
 ARCH_FORGE_HOOK_DEBUG=1 ARCH_FORGE_HOOK_PROFILE=strict claude --plugin-dir ./plugins/arch-forge
 ```
 
-ヘッドレスで試す場合、`--allowedTools` はカンマ区切りの 1 引数にし、プロンプトは stdin で渡す（可変長フラグがプロンプトを飲み込むため）。`claude -p` では Workflow ツールが提供されないので、Agent フォールバック経路になる。
+When trying it headless, pass `--allowedTools` as a single comma-separated argument and pass the prompt on stdin (variadic flags swallow the prompt). `claude -p` does not provide the Workflow tool, so it takes the Agent fallback path.
 
-## してはいけないこと
+## Do not
 
-- GitHub リポジトリの公開設定を変える、公開・公式ディレクトリへの申請をする（**オーナーの合図があるまで行わない**）
-- 秘密情報や実在の接続文字列をテンプレート・テストに書く
-- `HANDOFF.md` をコミットする（ローカル専用）
-- force push、`reset --hard`、ブランチ削除をオーナーの指示なしに行う
+- Change the GitHub repository's visibility, or submit it to public or official directories (**not until the owner says so**)
+- Put secrets or real connection strings in templates or tests
+- Commit `HANDOFF.md` (local only)
+- Force push, `reset --hard` or delete branches without the owner's instruction

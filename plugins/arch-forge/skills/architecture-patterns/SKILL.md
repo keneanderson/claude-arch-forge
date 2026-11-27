@@ -1,32 +1,32 @@
 ---
 name: architecture-patterns
-description: アプリケーションアーキテクチャの選定知識。レイヤード / クリーン / ヘキサゴナル / DDD / モジュラーモノリス / マイクロサービス / CQRS / イベント駆動の選び方、規模クラス判定（S/M/L/XL）、サービス分割の基準、言語（Go/PHP/Rust）の適性。アーキテクチャを比較・提案・レビューするとき、マイクロサービスにすべきか判断するときに使う。 Knowledge for choosing an application architecture (layered, clean, hexagonal, DDD, modular monolith, microservices, CQRS, event-driven), scale classes, service splitting, language fit, and framework and library selection criteria.
+description: Knowledge for choosing an application architecture. How to choose between layered / clean / hexagonal / DDD / modular monolith / microservices / CQRS / event-driven, scale classes (S/M/L/XL), criteria for splitting services, language fit (Go/PHP/Rust), and framework and library selection criteria. Use when comparing, proposing or reviewing architectures, or deciding whether to use microservices.
 user-invocable: false
 ---
 
-# アーキテクチャ選定ナレッジ
+# Architecture selection knowledge
 
-アーキテクチャを提案・レビューするときは、次の順で判断し、各判断に **要件からの根拠** を書く。
+When proposing or reviewing an architecture, decide in the following order and write **the rationale from the requirements** for each decision.
 
-1. **規模クラス判定** — [decision-matrix.md](references/decision-matrix.md) の Step 1 のスコア表で S/M/L/XL を判定。補正ルールを必ず適用する
-2. **トポロジー決定** — モノリス / モジュラーモノリス / マイクロサービス。分割する場合は [microservices.md](references/microservices.md) の前提チェックと境界の見つけ方に従う
-3. **内部パターン決定** — [patterns.md](references/patterns.md) の早見表。モジュール/サービスごとに複雑度が違えば別パターンでよい。**パッケージの分け方**（層ごと / 機能ごと / hybrid、patterns.md の 11 節）も合わせて決める
-4. **言語** — decision-matrix.md の Step 3
-5. **フレームワーク・主要ライブラリ** — [frameworks.md](references/frameworks.md) の手順で、ユニットの役割（HTTP / RPC / DB / マイグレーション / メッセージング / テスト）ごとに選び、次点と却下理由を残す。言語別の具体構成は `go-architecture` / `php-architecture` / `rust-architecture` スキル
-6. **提案の形式** — decision-matrix.md の Step 5（2〜3 案、推奨案＋よりシンプルな案、品質特性評価、進化パス）
+1. **Scale class** — decide S/M/L/XL with the score table in Step 1 of [decision-matrix.md](references/decision-matrix.md). Always apply the adjustment rules
+2. **Topology** — monolith / modular monolith / microservices. When splitting, follow the prerequisite check and how to find boundaries in [microservices.md](references/microservices.md)
+3. **Internal pattern** — the quick reference in [patterns.md](references/patterns.md). Modules/services of different complexity may use different patterns. Also decide **how to split packages** (by layer / by feature / hybrid, section 11 of patterns.md)
+4. **Language** — Step 3 of decision-matrix.md
+5. **Framework and major libraries** — with the procedure in [frameworks.md](references/frameworks.md), choose per unit role (HTTP / RPC / DB / migration / messaging / test), keeping the runner-up and reasons for rejection. Concrete per-language structures are in the `go-architecture` / `php-architecture` / `rust-architecture` skills
+6. **Proposal format** — Step 5 of decision-matrix.md (2–3 options, the recommendation + a simpler option, quality attribute ratings, evolution path)
 
-参照ファイルの絶対パス（Read ツールで開く）:
+Absolute paths of the reference files (open them with the Read tool):
 
 - `${CLAUDE_SKILL_DIR}/references/patterns.md`
 - `${CLAUDE_SKILL_DIR}/references/decision-matrix.md`
 - `${CLAUDE_SKILL_DIR}/references/microservices.md`
 - `${CLAUDE_SKILL_DIR}/references/frameworks.md`
 
-## 原則
+## Principles
 
-- **最もシンプルで要件を満たす案を基準線にする。** 複雑さを足すたびに、それを正当化する要件を 1 つ以上挙げる
-- 「将来必要になるかも」は根拠にしない。代わりに **見直しトリガー**（どうなったら次の段階へ進むか）を ADR に書く
-- マイクロサービスは組織とオペレーションの問題でもある。チーム数・運用能力が足りなければ推奨しない
-- 依存方向ルールは **ツールで機械的に検査できる形** で定義する（Go: go-arch-lint / depguard、PHP: deptrac、Rust: crate 分割）
-- **設定漏れは安全側に倒す**: 環境の既定値は本番相当にし、インメモリ実装・暗号化なし接続・簡易モードはローカル環境を明示したときだけ有効にする
-- ライブラリの版・保守状況の出典は一次情報（パッケージレジストリ、OSV、GitHub Releases）に限る。集計サイト・ブログは使わない
+- **The simplest option that meets the requirements is the baseline.** Each time you add complexity, name at least one requirement that justifies it
+- "We might need it in the future" is not a rationale. Instead, write **revisit triggers** (what would move you to the next stage) in the ADR
+- Microservices are also an organizational and operational problem. Do not recommend them if the number of teams or operational capability falls short
+- Define dependency direction rules **in a form tools can check mechanically** (Go: go-arch-lint / depguard, PHP: deptrac, Rust: crate splitting)
+- **Fail safe when settings are missing**: the environment defaults to production-equivalent, and in-memory implementations, unencrypted connections and simplified modes are enabled only when a local environment is set explicitly
+- Sources for library versions and maintenance status are limited to primary sources (package registries, OSV, GitHub Releases). Do not use aggregator sites or blogs

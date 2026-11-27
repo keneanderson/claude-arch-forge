@@ -1,15 +1,15 @@
-# 完了報告の前に検証する
+# Verify before reporting completion
 
-「動く」「通る」「直った」と書く前に、そのメッセージ内で検証コマンドを実行し、出力を確認する。
+Before writing "it works", "it passes" or "it's fixed", run the verification command in that same message and check its output.
 
-| 主張 | 必要な証拠 | 証拠にならないもの |
+| Claim | Evidence needed | Not evidence |
 |---|---|---|
-| テストが通る | テストコマンドの出力（失敗 0） | 前回の実行結果、「通るはず」 |
-| ビルドできる | ビルドコマンドの終了コード 0 | lint が通ったこと |
-| 依存ルールを守っている | arch-lint の出力、または `/arch-forge:check` の結果 | 目視 |
-| サブエージェントが完了した | 変更ファイルの差分 | サブエージェントの「成功しました」という報告 |
+| Tests pass | Output of the test command (0 failures) | An earlier run, "it should pass" |
+| It builds | Exit code 0 from the build command | Lint passing |
+| The dependency rules are kept | arch-lint output, or the result of `/arch-forge:check` | Eyeballing it |
+| A subagent finished | The diff of the changed files | The subagent's "it succeeded" report |
 
-- 実行できなかった検証は「未検証」と書き、理由（ツールが無い、ネットワーク不可など）を添える
-- skipped を passed として数えない
-- 検証を通すために検査（テスト、lint・arch-lint の設定、バージョン下限の検査）を緩めない。緩める必要があるなら、理由を書いてユーザーに確認する
-- 「おそらく」「〜のはず」で完了を報告しない
+- Write "not verified" for any verification you could not run, with the reason (tool missing, no network, etc.)
+- Do not count skipped as passed
+- Do not weaken checks (tests, lint and arch-lint settings, minimum-version checks) to make verification pass. If they need loosening, write the reason and ask the user
+- Do not report completion with "probably" or "it should"

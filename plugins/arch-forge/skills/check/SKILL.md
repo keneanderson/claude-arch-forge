@@ -1,21 +1,21 @@
 ---
 name: check
-description: 現在のコードが docs/architecture/decision.json と ADR の依存ルールに従っているかを検査し、違反（ファイル:行、ルール、修正案）を docs/architecture/07-conformance.md に報告する。機能追加後やレビュー前に「アーキテクチャ違反がないか確認して」と言われたときに使う。 Checks that the current code follows decision.json and the ADR dependency rules and reports violations (file, line, rule, fix) to docs/architecture/07-conformance.md. Use when asked to check for architecture violations.
-argument-hint: "[検査対象のパス（省略時はリポジトリ全体）]"
+description: Checks whether the current code follows the dependency rules in docs/architecture/decision.json and the ADRs, and reports violations (file:line, rule, suggested fix) to docs/architecture/07-conformance.md. Use after adding features or before a review, when asked to check for architecture violations.
+argument-hint: "[path to check (the whole repository if omitted)]"
 context: fork
 agent: arch-forge:architecture-critic
 allowed-tools: Read, Glob, Grep, Write, Bash
 ---
 
-conformance モードで検査する。
+Check in conformance mode.
 
-- 対象: $ARGUMENTS（空ならリポジトリ全体）
-- 入力: `docs/architecture/decision.json`、`docs/architecture/adr/*.md`、ルートの `AGENTS.md`、`.claude/rules/arch-forge/`
-- decision.json が無い場合は「`/arch-forge:design` で先にアーキテクチャを確定してください」とだけ返して終了する
+- Target: $ARGUMENTS (the whole repository if empty)
+- Input: `docs/architecture/decision.json`, `docs/architecture/adr/*.md`, the root `AGENTS.md`, `.claude/rules/arch-forge/`
+- If decision.json does not exist, return only "Confirm the architecture with `/arch-forge:design` first" and stop
 
-手順:
+Procedure:
 
-1. decision.json のユニット・モジュール・パターンを読み、期待するディレクトリと依存ルールを列挙する
-2. 言語別の機械チェックを実行できるものは実行する（Go: `.go-arch-lint.yml` があれば go-arch-lint、PHP: `deptrac.yaml` があれば `vendor/bin/deptrac analyse`、Rust: 各 crate の `Cargo.toml` の依存を確認）
-3. ツールで検出できない違反を Grep で探す（ドメイン層からのフレームワーク / DB ライブラリ参照、モジュールの非公開部分への参照、共有ライブラリへのドメインモデル混入）
-4. `docs/architecture/07-conformance.md` に違反一覧を書き、違反数・重大な違反の上位 3 件・実行できなかったチェックを返す
+1. Read the units, modules and patterns in decision.json, and list the expected directories and dependency rules
+2. Run whatever language-specific mechanical checks are available (Go: go-arch-lint if `.go-arch-lint.yml` exists; PHP: `vendor/bin/deptrac analyse` if `deptrac.yaml` exists; Rust: check the dependencies in each crate's `Cargo.toml`)
+3. Use Grep to look for violations the tools cannot detect (framework / DB library references from the domain layer, references into modules' non-public parts, domain models leaking into shared libraries)
+4. Write the list of violations to `docs/architecture/07-conformance.md`, and return the number of violations, the top 3 serious ones and the checks that could not run

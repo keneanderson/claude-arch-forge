@@ -1,4 +1,4 @@
-// Package inventory は他モジュールに公開する API だけを置く。
+// Package inventory holds only the API exposed to other modules.
 package inventory
 
 import "context"
